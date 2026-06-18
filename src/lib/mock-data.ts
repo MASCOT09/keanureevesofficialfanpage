@@ -1,0 +1,72 @@
+import type { ContactLink, SiteSettings } from "@/types/database";
+
+export const mockSiteSettings: SiteSettings = {
+  id: 1,
+  celebrity_name: "Keanu Reeves",
+  tagline: "Official fan experience — giveaways, meet & greets, and more.",
+  hero_video_url: "/videos/intro.mp4",
+  updated_at: new Date().toISOString(),
+};
+
+export const mockContactLinks: ContactLink[] = [
+  {
+    id: "demo-contact-keanu-wa",
+    platform: "whatsapp",
+    recipient: "keanu",
+    label: "Message on WhatsApp",
+    url: "https://wa.me/1234567890",
+    is_active: true,
+    sort_order: 1,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "demo-contact-keanu-zangi",
+    platform: "zangi",
+    recipient: "keanu",
+    label: "Message on Zangi",
+    url: "https://zangi.com/",
+    is_active: true,
+    sort_order: 2,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "demo-contact-keanu-tg",
+    platform: "telegram",
+    recipient: "keanu",
+    label: "Message on Telegram",
+    url: "https://t.me/keanureeves",
+    is_active: true,
+    sort_order: 3,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "demo-contact-team-wa",
+    platform: "whatsapp",
+    recipient: "team",
+    label: "Message on WhatsApp",
+    url: "https://wa.me/1987654321",
+    is_active: true,
+    sort_order: 4,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "demo-contact-team-zangi",
+    platform: "zangi",
+    recipient: "team",
+    label: "Message on Zangi",
+    url: "https://zangi.com/",
+    is_active: true,
+    sort_order: 5,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "demo-contact-team-tg",
+    platform: "telegram",
+    recipient: "team",
+    label: "Message on Telegram",
+    url: "https://t.me/keanufanteam",
+    is_active: true,
+    sort_order: 6,
+    created_at: new Date().toISOString(),
+  },
+];
