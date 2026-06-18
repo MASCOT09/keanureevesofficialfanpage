@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isExternalHref } from "@/lib/site-buttons";
+import { isExternalHref } from "@/lib/site-button-utils";
 
 type ButtonVariant = "primary" | "secondary" | "ghost";
 

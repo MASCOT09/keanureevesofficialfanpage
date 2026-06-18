@@ -1,14 +1,9 @@
 import { cache } from "react";
 import { getAllSiteButtons } from "@/lib/repository";
 import { SITE_BUTTON_DEFAULTS } from "@/lib/site-button-defaults";
+import type { SiteButtonMap } from "@/lib/site-button-utils";
 
-export interface ResolvedSiteButton {
-  label: string;
-  href: string;
-  openInNewTab: boolean;
-}
-
-export type SiteButtonMap = Record<string, ResolvedSiteButton>;
+export type { ResolvedSiteButton, SiteButtonMap } from "@/lib/site-button-utils";
 
 function defaultsToMap(): SiteButtonMap {
   const map: SiteButtonMap = {};
@@ -40,17 +35,3 @@ export const getSiteButtonMap = cache(async (): Promise<SiteButtonMap> => {
   }
   return map;
 });
-
-export function pickSiteButton(map: SiteButtonMap, key: string): ResolvedSiteButton {
-  return (
-    map[key] ?? {
-      label: key,
-      href: "/",
-      openInNewTab: false,
-    }
-  );
-}
-
-export function isExternalHref(href: string): boolean {
-  return /^https?:\/\//i.test(href);
-}

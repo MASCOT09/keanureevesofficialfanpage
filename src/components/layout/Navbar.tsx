@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SiteLink } from "@/components/ui/SiteLink";
-import { pickSiteButton, type SiteButtonMap } from "@/lib/site-buttons";
+import { pickSiteButton, type SiteButtonMap } from "@/lib/site-button-utils";
 
 export interface NavbarUser {
   id: string;

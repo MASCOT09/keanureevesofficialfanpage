@@ -1,7 +1,7 @@
 import { WelcomeHero } from "@/components/home/WelcomeHero";
 import { Button } from "@/components/ui/Button";
 import { SiteLink } from "@/components/ui/SiteLink";
-import { pickSiteButton, type SiteButtonMap } from "@/lib/site-buttons";
+import { pickSiteButton, type SiteButtonMap } from "@/lib/site-button-utils";
 
 interface HomeContentProps {
   celebrityName: string;

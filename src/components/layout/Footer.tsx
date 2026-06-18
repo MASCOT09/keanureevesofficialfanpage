@@ -1,7 +1,7 @@
 "use client";
 
 import { SiteLink } from "@/components/ui/SiteLink";
-import { pickSiteButton, type SiteButtonMap } from "@/lib/site-buttons";
+import { pickSiteButton, type SiteButtonMap } from "@/lib/site-button-utils";
 
 const publicFooterKeys = ["navbar.home", "navbar.communities"] as const;
 const memberFooterKeys = ["navbar.giveaways", "navbar.meet_greet", "navbar.contact"] as const;

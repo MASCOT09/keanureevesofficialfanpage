@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getCommunities } from "@/lib/repository";
-import { getSiteButtonMap, pickSiteButton } from "@/lib/site-buttons";
+import { getSiteButtonMap } from "@/lib/site-buttons";
+import { pickSiteButton } from "@/lib/site-button-utils";
 import { getSession } from "@/lib/session";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CommunityCard } from "@/components/communities/CommunityCard";
