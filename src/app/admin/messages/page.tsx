@@ -1,4 +1,4 @@
-import { getFansForMessaging } from "@/lib/excel/repository";
+import { getFansForMessaging } from "@/lib/repository";
 import { sendAdminMessageAction } from "@/app/actions/admin-actions";
 import {
   AdminFormField,

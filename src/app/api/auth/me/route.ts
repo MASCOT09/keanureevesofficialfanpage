@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { findUserById, isExcelBackendReady } from "@/lib/excel/repository";
+import { findUserById, isExcelBackendReady } from "@/lib/repository";
 import { normalizeMembershipStatus, normalizeMembershipTier } from "@/lib/membership";
 
 export async function GET() {

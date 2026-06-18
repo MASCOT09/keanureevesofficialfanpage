@@ -1,4 +1,4 @@
-import { getAllCommunities } from "@/lib/excel/repository";
+import { getAllCommunities } from "@/lib/repository";
 import {
   createCommunity,
   deleteCommunityForm,

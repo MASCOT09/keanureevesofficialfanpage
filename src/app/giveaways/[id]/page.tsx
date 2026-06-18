@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getGiveawayById } from "@/lib/data";
 import { getCurrentUser } from "@/lib/auth";
-import { hasGiveawayEntry } from "@/lib/excel/repository";
+import { hasGiveawayEntry } from "@/lib/repository";
 import { EnterGiveawayButton } from "@/components/giveaways/EnterGiveawayButton";
 import { Badge } from "@/components/ui/Badge";
 

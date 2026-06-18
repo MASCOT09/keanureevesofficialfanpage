@@ -8,7 +8,7 @@ import {
   getProfileById,
   getRegistrationsForUser,
   isExcelBackendReady,
-} from "@/lib/excel/repository";
+} from "@/lib/repository";
 import type { Giveaway } from "@/types/database";
 import type { Message } from "@/types/messages";
 import type { Notification } from "@/types/messages";

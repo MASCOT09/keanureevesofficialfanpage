@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { removeUserAvatarFiles, saveUserAvatar } from "@/lib/avatar";
-import { updateUserAvatar, updateUserProfile } from "@/lib/excel/repository";
+import { updateUserAvatar, updateUserProfile } from "@/lib/repository";
 
 export async function updateProfile(formData: FormData) {
   const user = await getCurrentUser();

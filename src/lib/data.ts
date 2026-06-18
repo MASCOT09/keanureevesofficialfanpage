@@ -3,7 +3,7 @@ import {
   getGiveaways as listGiveaways,
   getMeetGreetEventById as getEvent,
   getMeetGreetEvents as listEvents,
-} from "@/lib/excel/repository";
+} from "@/lib/repository";
 
 export async function getGiveaways() {
   return listGiveaways();

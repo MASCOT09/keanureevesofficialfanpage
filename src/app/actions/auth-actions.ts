@@ -9,7 +9,7 @@ import {
   findUserByEmail,
   isExcelBackendReady,
   verifyPassword,
-} from "@/lib/excel/repository";
+} from "@/lib/repository";
 import { validateEmail } from "@/lib/validate-email";
 
 export type AuthActionState = {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
-import { getMessagesForUser } from "@/lib/excel/repository";
+import { getMessagesForUser } from "@/lib/repository";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DashboardEmptyState } from "@/components/dashboard/ui/DashboardEmptyState";
 import { MessageStatusBadge } from "@/components/dashboard/ui/MessageStatusBadge";

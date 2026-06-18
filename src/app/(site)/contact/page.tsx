@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getContactLinks } from "@/lib/excel/repository";
+import { getContactLinks } from "@/lib/repository";
 import { getCurrentMembership } from "@/lib/auth";
 import { hasActiveMembership } from "@/lib/membership";
 import { PageHeader } from "@/components/ui/PageHeader";

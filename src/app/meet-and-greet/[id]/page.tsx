@@ -7,7 +7,7 @@ import {
   countConfirmedRegistrations,
   getContactLinks,
   getRegistrationForUser,
-} from "@/lib/excel/repository";
+} from "@/lib/repository";
 import { getTeamContactLinks } from "@/lib/contact-dms";
 import { canRegisterMeetAndGreet } from "@/lib/membership";
 import { RegisterButton } from "@/components/meet-greet/RegisterButton";

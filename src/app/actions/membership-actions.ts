@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
-import { createMembershipApplication } from "@/lib/excel/repository";
+import { createMembershipApplication } from "@/lib/repository";
 import type { MembershipApplication } from "@/types/membership";
 
 export async function applyForMembershipAction(tier: MembershipApplication["tier"]) {

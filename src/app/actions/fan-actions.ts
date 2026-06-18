@@ -11,7 +11,7 @@ import {
   createMeetGreetRegistration,
   getGiveawayById,
   getMeetGreetEventById,
-} from "@/lib/excel/repository";
+} from "@/lib/repository";
 
 export async function enterGiveaway(giveawayId: string) {
   const user = await getCurrentUser();

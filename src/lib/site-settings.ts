@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { getSiteSettings as getSettings } from "@/lib/excel/repository";
+import { getSiteSettings as getSettings } from "@/lib/repository";
 import { mockSiteSettings } from "@/lib/mock-data";
 
 export const getSiteSettings = cache(async () => {

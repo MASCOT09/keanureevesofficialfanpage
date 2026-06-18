@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getCommunities } from "@/lib/excel/repository";
+import { getCommunities } from "@/lib/repository";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CommunityCard } from "@/components/communities/CommunityCard";
 import { EmptyState } from "@/components/ui/EmptyState";

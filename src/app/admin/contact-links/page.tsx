@@ -1,4 +1,4 @@
-import { getAllContactLinks } from "@/lib/excel/repository";
+import { getAllContactLinks } from "@/lib/repository";
 import {
   createContactLink,
   deleteContactLinkForm,

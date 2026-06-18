@@ -4,7 +4,7 @@ import {
   findUserById,
   getProfileById,
   isExcelBackendReady,
-} from "@/lib/excel/repository";
+} from "@/lib/repository";
 import { normalizeMembershipStatus, normalizeMembershipTier } from "@/lib/membership";
 import type { MembershipInfo } from "@/types/membership";
 

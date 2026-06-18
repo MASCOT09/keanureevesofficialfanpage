@@ -1,4 +1,4 @@
-import { getAllMeetGreetEvents } from "@/lib/excel/repository";
+import { getAllMeetGreetEvents } from "@/lib/repository";
 import {
   createMeetGreetEvent,
   deleteMeetGreetEventForm,

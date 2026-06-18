@@ -1,4 +1,4 @@
-import { getAllGiveaways } from "@/lib/excel/repository";
+import { getAllGiveaways } from "@/lib/repository";
 import {
   createGiveaway,
   deleteGiveawayForm,

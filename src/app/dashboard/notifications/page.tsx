@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
-import { getNotificationsForUser } from "@/lib/excel/repository";
+import { getNotificationsForUser } from "@/lib/repository";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DashboardEmptyState } from "@/components/dashboard/ui/DashboardEmptyState";
 import { formatDashboardDateTime } from "@/lib/dashboard-utils";

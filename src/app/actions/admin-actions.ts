@@ -26,7 +26,7 @@ import {
   updateSiteSettings as saveSiteSettings,
   sendAdminMessage,
   updateUserRole,
-} from "@/lib/excel/repository";
+} from "@/lib/repository";
 import type { UserRole } from "@/types/database";
 
 async function requireAdmin() {

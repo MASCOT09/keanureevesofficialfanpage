@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getAdminStats } from "@/lib/excel/repository";
+import { getAdminStats } from "@/lib/repository";
 import { AdminPageHeader, AdminCard } from "@/components/admin/AdminForm";
 
 const controls = [

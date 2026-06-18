@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getContactLinks } from "@/lib/excel/repository";
+import { getContactLinks } from "@/lib/repository";
 import { getCurrentMembership } from "@/lib/auth";
 import { hasActiveMembership } from "@/lib/membership";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";

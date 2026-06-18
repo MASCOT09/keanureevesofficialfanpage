@@ -1,4 +1,4 @@
-import { getSiteSettings } from "@/lib/excel/repository";
+import { getSiteSettings } from "@/lib/repository";
 import { updateSiteSettings } from "@/app/actions/admin-actions";
 import {
   AdminFormField,

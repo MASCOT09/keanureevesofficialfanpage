@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { updateUserRoleAction } from "@/app/actions/admin-actions";
 import { AdminPageHeader, AdminSubmitButton } from "@/components/admin/AdminForm";
 import { getSession } from "@/lib/session";
-import { countAdmins, getAdminUserList } from "@/lib/excel/repository";
+import { countAdmins, getAdminUserList } from "@/lib/repository";
 import { formatDashboardDate } from "@/lib/dashboard-utils";
 
 export const metadata: Metadata = {

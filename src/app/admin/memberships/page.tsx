@@ -1,4 +1,4 @@
-import { getAllMembershipApplications } from "@/lib/excel/repository";
+import { getAllMembershipApplications } from "@/lib/repository";
 import {
   approveMembershipApplicationAction,
   rejectMembershipApplicationAction,
