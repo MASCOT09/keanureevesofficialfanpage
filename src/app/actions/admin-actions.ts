@@ -27,8 +27,10 @@ import {
   updateSiteButton as saveSiteButton,
   sendAdminMessage,
   updateUserRole,
+  updateUserMembership,
 } from "@/lib/repository";
 import type { UserRole } from "@/types/database";
+import type { MembershipTier } from "@/types/membership";
 
 async function requireAdmin() {
   if (!(await isAdmin())) {
@@ -49,6 +51,20 @@ export async function updateUserRoleAction(targetUserId: string, formData: FormD
 
   await updateUserRole(session.sub, targetUserId, role);
   revalidatePath("/admin/users");
+  revalidatePath("/dashboard", "layout");
+}
+
+export async function updateUserMembershipAction(targetUserId: string, formData: FormData) {
+  await requireAdmin();
+
+  const tier = formData.get("membership_tier") as MembershipTier;
+  if (tier !== "none" && tier !== "silver" && tier !== "gold" && tier !== "platinum") {
+    throw new Error("Invalid membership tier.");
+  }
+
+  await updateUserMembership(targetUserId, tier);
+  revalidatePath("/admin/users");
+  revalidatePath("/dashboard", "layout");
 }
 
 export async function sendAdminMessageAction(formData: FormData) {

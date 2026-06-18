@@ -201,17 +201,21 @@ export interface AdminUserSummary {
   role: UserRole;
   country: string | null;
   created_at: string;
+  membership_tier: import("@/types/membership").MembershipTier;
+  membership_status: import("@/types/membership").MembershipStatus;
 }
 
 export async function getAdminUserList(): Promise<AdminUserSummary[]> {
   return readSheet<UserRow>("users")
-    .map(({ id, email, display_name, role, country, created_at }) => ({
+    .map(({ id, email, display_name, role, country, created_at, membership_tier, membership_status }) => ({
       id,
       email,
       display_name,
       role,
       country: country ?? null,
       created_at,
+      membership_tier: normalizeMembershipTier(membership_tier),
+      membership_status: normalizeMembershipStatus(membership_status),
     }))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
@@ -248,6 +252,31 @@ export async function updateUserRole(
   }
 
   users[targetIndex].role = role;
+  if (role === "admin") {
+    users[targetIndex].membership_tier = "platinum";
+    users[targetIndex].membership_status = "active";
+  }
+  writeSheet("users", users);
+}
+
+export async function updateUserMembership(
+  targetUserId: string,
+  tier: import("@/types/membership").MembershipTier
+): Promise<void> {
+  if (tier !== "none" && tier !== "silver" && tier !== "gold" && tier !== "platinum") {
+    throw new Error("Invalid membership tier.");
+  }
+
+  const users = readSheet<UserRow>("users");
+  const targetIndex = users.findIndex((u) => u.id === targetUserId);
+  if (targetIndex === -1) throw new Error("User not found.");
+
+  if (users[targetIndex].role === "admin") {
+    throw new Error("Admins always have Platinum membership.");
+  }
+
+  users[targetIndex].membership_tier = tier;
+  users[targetIndex].membership_status = tier === "none" ? "none" : "active";
   writeSheet("users", users);
 }
 
@@ -1012,13 +1041,15 @@ export async function countUnreadNotifications(userId: string): Promise<number> 
 export async function getFansForMessaging(): Promise<AdminUserSummary[]> {
   return readSheet<UserRow>("users")
     .filter((u) => u.role === "fan")
-    .map(({ id, email, display_name, role, country, created_at }) => ({
+    .map(({ id, email, display_name, role, country, created_at, membership_tier, membership_status }) => ({
       id,
       email,
       display_name,
       role,
       country: country ?? null,
       created_at,
+      membership_tier: normalizeMembershipTier(membership_tier),
+      membership_status: normalizeMembershipStatus(membership_status),
     }))
     .sort((a, b) => a.display_name.localeCompare(b.display_name));
 }

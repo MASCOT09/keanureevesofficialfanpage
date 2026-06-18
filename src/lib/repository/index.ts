@@ -27,6 +27,7 @@ export const updateUserAvatar = repository.updateUserAvatar;
 export const getAdminUserList = repository.getAdminUserList;
 export const countAdmins = repository.countAdmins;
 export const updateUserRole = repository.updateUserRole;
+export const updateUserMembership = repository.updateUserMembership;
 export const getLatestMembershipApplicationForUser =
   repository.getLatestMembershipApplicationForUser;
 export const getAllMembershipApplications = repository.getAllMembershipApplications;

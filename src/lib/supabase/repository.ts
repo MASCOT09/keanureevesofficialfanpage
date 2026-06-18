@@ -329,17 +329,26 @@ export interface AdminUserSummary {
   role: UserRole;
   country: string | null;
   created_at: string;
+  membership_tier: import("@/types/membership").MembershipTier;
+  membership_status: import("@/types/membership").MembershipStatus;
 }
 
 export async function getAdminUserList(): Promise<AdminUserSummary[]> {
   const client = getSupabaseAdmin();
   const { data, error } = await client
     .from("app_users")
-    .select("id, email, display_name, role, country, created_at");
+    .select("id, email, display_name, role, country, created_at, membership_tier, membership_status");
   throwReadError(error);
-  return ((data ?? []) as AdminUserSummary[]).sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+  return ((data ?? []) as (AdminUserSummary & {
+    membership_tier?: string | null;
+    membership_status?: string | null;
+  })[])
+    .map((row) => ({
+      ...row,
+      membership_tier: normalizeMembershipTier(row.membership_tier),
+      membership_status: normalizeMembershipStatus(row.membership_status),
+    }))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 export async function countAdmins(): Promise<number> {
@@ -380,9 +389,44 @@ export async function updateUserRole(
     }
   }
 
+  const updatePayload =
+    role === "admin"
+      ? { role, membership_tier: "platinum", membership_status: "active" }
+      : { role };
+
   const { error: updateError } = await client
     .from("app_users")
-    .update({ role })
+    .update(updatePayload)
+    .eq("id", targetUserId);
+  throwWriteError(updateError);
+}
+
+export async function updateUserMembership(
+  targetUserId: string,
+  tier: import("@/types/membership").MembershipTier
+): Promise<void> {
+  if (tier !== "none" && tier !== "silver" && tier !== "gold" && tier !== "platinum") {
+    throw new Error("Invalid membership tier.");
+  }
+
+  const client = getSupabaseAdmin();
+  const { data: target, error: targetError } = await client
+    .from("app_users")
+    .select("id, role")
+    .eq("id", targetUserId)
+    .maybeSingle<{ id: string; role: UserRole }>();
+  throwReadError(targetError);
+  if (!target) throw new Error("User not found.");
+  if (target.role === "admin") {
+    throw new Error("Admins always have Platinum membership.");
+  }
+
+  const { error: updateError } = await client
+    .from("app_users")
+    .update({
+      membership_tier: tier,
+      membership_status: tier === "none" ? "none" : "active",
+    })
     .eq("id", targetUserId);
   throwWriteError(updateError);
 }
@@ -1176,12 +1220,19 @@ export async function getFansForMessaging(): Promise<AdminUserSummary[]> {
   const client = getSupabaseAdmin();
   const { data, error } = await client
     .from("app_users")
-    .select("id, email, display_name, role, country, created_at")
+    .select("id, email, display_name, role, country, created_at, membership_tier, membership_status")
     .eq("role", "fan");
   throwReadError(error);
-  return ((data ?? []) as AdminUserSummary[]).sort((a, b) =>
-    a.display_name.localeCompare(b.display_name)
-  );
+  return ((data ?? []) as (AdminUserSummary & {
+    membership_tier?: string | null;
+    membership_status?: string | null;
+  })[])
+    .map((row) => ({
+      ...row,
+      membership_tier: normalizeMembershipTier(row.membership_tier),
+      membership_status: normalizeMembershipStatus(row.membership_status),
+    }))
+    .sort((a, b) => a.display_name.localeCompare(b.display_name));
 }
 
 export async function sendAdminMessage(input: {
