@@ -87,3 +87,16 @@ export interface ContactLink {
   sort_order: number;
   created_at: string;
 }
+
+export interface SiteButton {
+  id: string;
+  button_key: string;
+  section: string;
+  label: string;
+  href: string;
+  description: string | null;
+  is_active: boolean;
+  sort_order: number;
+  open_in_new_tab: boolean;
+  updated_at: string;
+}

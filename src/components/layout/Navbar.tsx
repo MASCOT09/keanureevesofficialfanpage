@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SiteLink } from "@/components/ui/SiteLink";
+import { pickSiteButton, type SiteButtonMap } from "@/lib/site-buttons";
 
 export interface NavbarUser {
   id: string;
@@ -11,18 +12,21 @@ export interface NavbarUser {
   display_name: string;
 }
 
-const publicNavLinks = [
-  { href: "/", label: "Home" },
-  { href: "/communities", label: "Communities" },
-];
+const publicNavKeys = ["navbar.home", "navbar.communities"] as const;
+const memberNavKeys = ["navbar.giveaways", "navbar.meet_greet", "navbar.contact"] as const;
 
-const memberNavLinks = [
-  { href: "/giveaways", label: "Giveaways" },
-  { href: "/meet-and-greet", label: "Meet & Greet" },
-  { href: "/contact", label: "Private DMs" },
-];
+function navItem(map: SiteButtonMap, key: string) {
+  const btn = pickSiteButton(map, key);
+  return { key, label: btn.label, href: btn.href, openInNewTab: btn.openInNewTab };
+}
 
-export function Navbar({ initialUser = null }: { initialUser?: NavbarUser | null }) {
+export function Navbar({
+  initialUser = null,
+  buttons,
+}: {
+  initialUser?: NavbarUser | null;
+  buttons: SiteButtonMap;
+}) {
   const pathname = usePathname();
   const [user, setUser] = useState<NavbarUser | null>(initialUser);
   const [authReady, setAuthReady] = useState(true);
@@ -46,7 +50,16 @@ export function Navbar({ initialUser = null }: { initialUser?: NavbarUser | null
   };
 
   const isAdmin = user?.role === "admin";
-  const navLinks = user ? [...publicNavLinks, ...memberNavLinks] : publicNavLinks;
+  const home = navItem(buttons, "navbar.home");
+  const navLinks = user
+    ? [...publicNavKeys, ...memberNavKeys].map((key) => navItem(buttons, key))
+    : publicNavKeys.map((key) => navItem(buttons, key));
+  const login = navItem(buttons, "navbar.login");
+  const signup = navItem(buttons, "navbar.signup");
+  const dashboard = navItem(buttons, "navbar.dashboard");
+  const admin = navItem(buttons, "navbar.admin");
+
+  const isActive = (href: string) => pathname === href;
 
   return (
     <header
@@ -57,22 +70,23 @@ export function Navbar({ initialUser = null }: { initialUser?: NavbarUser | null
       }`}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-10">
-        <Link href="/" className="group flex items-center gap-3">
+        <SiteLink href={home.href} openInNewTab={home.openInNewTab} className="group flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full border border-accent/30 bg-accent/5 font-display text-sm text-accent transition-all duration-300 group-hover:border-accent group-hover:bg-accent/10">
             KR
           </span>
           <span className="font-display text-lg tracking-wide text-foreground transition-colors duration-300 group-hover:text-accent">
             Keanu Reeves
           </span>
-        </Link>
+        </SiteLink>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
           {navLinks.map((link) => {
-            const active = pathname === link.href;
+            const active = isActive(link.href);
             return (
-              <Link
-                key={link.href}
+              <SiteLink
+                key={link.key}
                 href={link.href}
+                openInNewTab={link.openInNewTab}
                 className={`relative px-4 py-2 text-sm tracking-wide transition-colors duration-300 ${
                   active ? "text-accent" : "text-muted hover:text-foreground"
                 }`}
@@ -81,33 +95,35 @@ export function Navbar({ initialUser = null }: { initialUser?: NavbarUser | null
                 {active && (
                   <span className="absolute bottom-0 left-1/2 h-px w-6 -translate-x-1/2 bg-accent" />
                 )}
-              </Link>
+              </SiteLink>
             );
           })}
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
           {authReady && isAdmin && (
-            <Link
-              href="/admin"
+            <SiteLink
+              href={admin.href}
+              openInNewTab={admin.openInNewTab}
               className="text-sm tracking-wide text-muted transition-colors duration-300 hover:text-accent"
             >
-              Admin
-            </Link>
+              {admin.label}
+            </SiteLink>
           )}
           {authReady &&
             (user ? (
               <>
-                <Link
-                  href="/dashboard"
+                <SiteLink
+                  href={dashboard.href}
+                  openInNewTab={dashboard.openInNewTab}
                   className={`text-sm tracking-wide transition-colors duration-300 ${
                     pathname.startsWith("/dashboard")
                       ? "text-accent"
                       : "text-muted hover:text-foreground"
                   }`}
                 >
-                  Dashboard
-                </Link>
+                  {dashboard.label}
+                </SiteLink>
                 <button
                   onClick={handleSignOut}
                   className="rounded-full border border-border px-5 py-2 text-sm tracking-wide text-muted transition-all duration-300 hover:border-accent/40 hover:text-foreground"
@@ -117,18 +133,20 @@ export function Navbar({ initialUser = null }: { initialUser?: NavbarUser | null
               </>
             ) : (
               <>
-                <Link
-                  href="/login"
+                <SiteLink
+                  href={login.href}
+                  openInNewTab={login.openInNewTab}
                   className="text-sm tracking-wide text-muted transition-colors duration-300 hover:text-foreground"
                 >
-                  Log in
-                </Link>
-                <Link
-                  href="/signup"
+                  {login.label}
+                </SiteLink>
+                <SiteLink
+                  href={signup.href}
+                  openInNewTab={signup.openInNewTab}
                   className="rounded-full bg-accent px-5 py-2 text-sm font-medium tracking-wide text-on-accent transition-all duration-300 hover:bg-accent-hover hover:shadow-[0_0_24px_rgba(212,175,55,0.3)]"
                 >
-                  Sign up
-                </Link>
+                  {signup.label}
+                </SiteLink>
               </>
             ))}
         </div>
@@ -152,48 +170,65 @@ export function Navbar({ initialUser = null }: { initialUser?: NavbarUser | null
         <nav className="glass border-t border-border px-6 py-6 md:hidden" aria-label="Mobile navigation">
           <div className="flex flex-col gap-1">
             {navLinks.map((link) => (
-              <Link
-                key={link.href}
+              <SiteLink
+                key={link.key}
                 href={link.href}
+                openInNewTab={link.openInNewTab}
                 onClick={() => setMobileOpen(false)}
                 className={`rounded-xl px-4 py-3 text-sm tracking-wide transition-colors ${
-                  pathname === link.href
+                  isActive(link.href)
                     ? "bg-accent/10 text-accent"
                     : "text-muted hover:bg-white/5 hover:text-foreground"
                 }`}
               >
                 {link.label}
-              </Link>
+              </SiteLink>
             ))}
             <div className="my-3 h-px bg-border" />
             {authReady && isAdmin && (
-              <Link href="/admin" onClick={() => setMobileOpen(false)} className="px-4 py-3 text-sm text-muted">
-                Admin
-              </Link>
+              <SiteLink
+                href={admin.href}
+                openInNewTab={admin.openInNewTab}
+                onClick={() => setMobileOpen(false)}
+                className="px-4 py-3 text-sm text-muted"
+              >
+                {admin.label}
+              </SiteLink>
             )}
             {authReady && (user ? (
               <>
-                <Link
-                  href="/dashboard"
+                <SiteLink
+                  href={dashboard.href}
+                  openInNewTab={dashboard.openInNewTab}
                   onClick={() => setMobileOpen(false)}
                   className={`px-4 py-3 text-sm ${
                     pathname.startsWith("/dashboard") ? "text-accent" : "text-muted"
                   }`}
                 >
-                  Dashboard
-                </Link>
+                  {dashboard.label}
+                </SiteLink>
                 <button onClick={handleSignOut} className="px-4 py-3 text-left text-sm text-muted">
                   Sign out
                 </button>
               </>
             ) : (
               <>
-                <Link href="/login" onClick={() => setMobileOpen(false)} className="px-4 py-3 text-sm text-muted">
-                  Log in
-                </Link>
-                <Link href="/signup" onClick={() => setMobileOpen(false)} className="px-4 py-3 text-sm text-accent">
-                  Sign up
-                </Link>
+                <SiteLink
+                  href={login.href}
+                  openInNewTab={login.openInNewTab}
+                  onClick={() => setMobileOpen(false)}
+                  className="px-4 py-3 text-sm text-muted"
+                >
+                  {login.label}
+                </SiteLink>
+                <SiteLink
+                  href={signup.href}
+                  openInNewTab={signup.openInNewTab}
+                  onClick={() => setMobileOpen(false)}
+                  className="px-4 py-3 text-sm text-accent"
+                >
+                  {signup.label}
+                </SiteLink>
               </>
             ))}
           </div>

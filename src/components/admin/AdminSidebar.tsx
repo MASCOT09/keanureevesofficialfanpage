@@ -11,6 +11,7 @@ const links = [
   { href: "/admin/memberships", label: "Memberships" },
   { href: "/admin/communities", label: "Communities" },
   { href: "/admin/contact-links", label: "Contact Links" },
+  { href: "/admin/site-buttons", label: "Button Links" },
   { href: "/admin/settings", label: "Site Settings" },
   { href: "/admin/users", label: "Team & Admins" },
 ];

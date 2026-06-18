@@ -18,11 +18,13 @@ import type {
   MeetGreetEvent,
   MeetGreetRegistration,
   Profile,
+  SiteButton,
   SiteSettings,
   UserRole,
 } from "@/types/database";
 import type { Message } from "@/types/messages";
 import { normalizeContactUrl } from "@/lib/contact-dms";
+import { SITE_BUTTON_DEFAULTS } from "@/lib/site-button-defaults";
 import {
   getMembershipPrice,
   normalizeMembershipStatus,
@@ -870,6 +872,80 @@ export async function deleteContactLink(id: string) {
     "contact_links",
     readSheet<ContactLinkRow>("contact_links").filter((l) => l.id !== id)
   );
+}
+
+// ─── Site buttons ───────────────────────────────────────────────
+
+interface SiteButtonRow {
+  id: string;
+  button_key: string;
+  section: string;
+  label: string;
+  href: string;
+  description?: string | null;
+  is_active: boolean | string;
+  sort_order: number;
+  open_in_new_tab: boolean | string;
+  updated_at: string;
+}
+
+function toSiteButton(row: SiteButtonRow): SiteButton {
+  return {
+    id: row.id,
+    button_key: row.button_key,
+    section: row.section,
+    label: row.label,
+    href: row.href,
+    description: row.description ?? null,
+    is_active: parseBool(row.is_active),
+    sort_order: Number(row.sort_order) || 0,
+    open_in_new_tab: parseBool(row.open_in_new_tab),
+    updated_at: row.updated_at,
+  };
+}
+
+function seedSiteButtonsIfEmpty() {
+  const existing = readSheet<SiteButtonRow>("site_buttons");
+  if (existing.length) return;
+  const seeded = SITE_BUTTON_DEFAULTS.map((row) => ({
+    ...row,
+    updated_at: now(),
+  }));
+  writeSheet("site_buttons", seeded);
+}
+
+export async function getAllSiteButtons(): Promise<SiteButton[]> {
+  if (!workbookExists()) {
+    return SITE_BUTTON_DEFAULTS.map((row) => ({ ...row, updated_at: now() }));
+  }
+  seedSiteButtonsIfEmpty();
+  return readSheet<SiteButtonRow>("site_buttons")
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(toSiteButton);
+}
+
+export async function updateSiteButton(
+  id: string,
+  data: {
+    label: string;
+    href: string;
+    is_active: boolean;
+    open_in_new_tab: boolean;
+  }
+) {
+  seedSiteButtonsIfEmpty();
+  const buttons = readSheet<SiteButtonRow>("site_buttons");
+  const index = buttons.findIndex((b) => b.id === id);
+  if (index === -1) throw new Error("Site button not found.");
+  buttons[index] = {
+    ...buttons[index],
+    label: data.label,
+    href: data.href,
+    is_active: data.is_active,
+    open_in_new_tab: data.open_in_new_tab,
+    updated_at: now(),
+  };
+  writeSheet("site_buttons", buttons);
 }
 
 interface MessageRow {

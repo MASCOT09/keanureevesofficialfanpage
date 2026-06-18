@@ -1,4 +1,5 @@
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
+import { getSiteButtonMap } from "@/lib/site-buttons";
 import { Footer } from "@/components/layout/Footer";
 import { Navbar, type NavbarUser } from "@/components/layout/Navbar";
 
@@ -16,15 +17,15 @@ async function getNavbarUser(): Promise<NavbarUser | null> {
 }
 
 export async function SiteLayoutWrapper({ children }: { children: React.ReactNode }) {
-  const initialUser = await getNavbarUser();
+  const [initialUser, buttons] = await Promise.all([getNavbarUser(), getSiteButtonMap()]);
 
   return (
     <>
-      <Navbar initialUser={initialUser} />
+      <Navbar initialUser={initialUser} buttons={buttons} />
       <main id="main-content" className="min-h-[calc(100vh-8rem)]">
         {children}
       </main>
-      <Footer isLoggedIn={!!initialUser} />
+      <Footer isLoggedIn={!!initialUser} buttons={buttons} />
     </>
   );
 }

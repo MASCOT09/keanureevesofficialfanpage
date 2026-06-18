@@ -1,22 +1,25 @@
 "use client";
 
-import Link from "next/link";
+import { SiteLink } from "@/components/ui/SiteLink";
+import { pickSiteButton, type SiteButtonMap } from "@/lib/site-buttons";
 
-const publicFooterLinks = [
-  { href: "/", label: "Home" },
-  { href: "/communities", label: "Communities" },
-];
+const publicFooterKeys = ["navbar.home", "navbar.communities"] as const;
+const memberFooterKeys = ["navbar.giveaways", "navbar.meet_greet", "navbar.contact"] as const;
 
-const memberFooterLinks = [
-  { href: "/giveaways", label: "Giveaways" },
-  { href: "/meet-and-greet", label: "Meet & Greet" },
-  { href: "/contact", label: "Private DMs" },
-];
+function footerItem(map: SiteButtonMap, key: string) {
+  const btn = pickSiteButton(map, key);
+  return { key, label: btn.label, href: btn.href, openInNewTab: btn.openInNewTab };
+}
 
-export function Footer({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
-  const footerLinks = isLoggedIn
-    ? [...publicFooterLinks, ...memberFooterLinks]
-    : publicFooterLinks;
+export function Footer({
+  isLoggedIn = false,
+  buttons,
+}: {
+  isLoggedIn?: boolean;
+  buttons: SiteButtonMap;
+}) {
+  const keys = isLoggedIn ? [...publicFooterKeys, ...memberFooterKeys] : publicFooterKeys;
+  const footerLinks = keys.map((key) => footerItem(buttons, key));
 
   return (
     <footer className="border-t border-border/60 bg-card/30">
@@ -31,13 +34,14 @@ export function Footer({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
           <nav aria-label="Footer navigation">
             <ul className="flex flex-wrap justify-center gap-8 text-sm tracking-wide text-muted">
               {footerLinks.map((link) => (
-                <li key={link.href}>
-                  <Link
+                <li key={link.key}>
+                  <SiteLink
                     href={link.href}
+                    openInNewTab={link.openInNewTab}
                     className="transition-colors duration-300 hover:text-accent"
                   >
                     {link.label}
-                  </Link>
+                  </SiteLink>
                 </li>
               ))}
             </ul>

@@ -29,6 +29,11 @@ const controls = [
     description: "Update WhatsApp, Telegram, and Zangi links on Private DMs.",
   },
   {
+    href: "/admin/site-buttons",
+    title: "Button Links",
+    description: "Control navigation, homepage CTAs, and where guest community clicks go.",
+  },
+  {
     href: "/admin/settings",
     title: "Site Settings",
     description: "Edit the celebrity name, tagline, and hero video on the homepage.",

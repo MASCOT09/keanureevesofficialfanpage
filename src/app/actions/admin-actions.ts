@@ -24,6 +24,7 @@ import {
   updateGiveaway as saveGiveaway,
   updateMeetGreetEvent as saveMeetGreetEvent,
   updateSiteSettings as saveSiteSettings,
+  updateSiteButton as saveSiteButton,
   sendAdminMessage,
   updateUserRole,
 } from "@/lib/repository";
@@ -308,6 +309,18 @@ export async function deleteContactLinkForm(formData: FormData) {
   revalidatePath("/dashboard/contact");
 }
 
+export async function updateSiteButtonAction(id: string, formData: FormData) {
+  await requireAdmin();
+  await saveSiteButton(id, {
+    label: (formData.get("label") as string).trim(),
+    href: (formData.get("href") as string).trim(),
+    is_active: formData.get("is_active") === "true",
+    open_in_new_tab: formData.get("open_in_new_tab") === "true",
+  });
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/site-buttons");
+}
+
 export async function approveMembershipApplicationAction(formData: FormData) {
   await requireAdmin();
   const id = formData.get("id") as string;
@@ -336,3 +349,4 @@ export const createCommunity = createCommunityAction;
 export const updateCommunity = updateCommunityAction;
 export const createContactLink = createContactLinkAction;
 export const updateContactLink = updateContactLinkAction;
+export const updateSiteButton = updateSiteButtonAction;

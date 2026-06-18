@@ -14,6 +14,7 @@ export type SheetName =
   | "meet_greet_registrations"
   | "communities"
   | "contact_links"
+  | "site_buttons"
   | "messages"
   | "notifications"
   | "membership_applications";

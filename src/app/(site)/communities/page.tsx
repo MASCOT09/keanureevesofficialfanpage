@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { getCommunities } from "@/lib/repository";
+import { getSiteButtonMap, pickSiteButton } from "@/lib/site-buttons";
+import { getSession } from "@/lib/session";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CommunityCard } from "@/components/communities/CommunityCard";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -18,7 +20,13 @@ export const metadata: Metadata = buildPageMetadata({
 export const revalidate = 60;
 
 export default async function CommunitiesPage() {
-  const communities = await getCommunities();
+  const [communities, session, buttons] = await Promise.all([
+    getCommunities(),
+    getSession(),
+    getSiteButtonMap(),
+  ]);
+  const isLoggedIn = !!session;
+  const guestJoin = pickSiteButton(buttons, "community.guest_join");
 
   return (
     <>
@@ -40,7 +48,13 @@ export default async function CommunitiesPage() {
             <ul className="grid list-none gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {communities.map((community) => (
                 <li key={community.id}>
-                  <CommunityCard community={community} />
+                  <CommunityCard
+                    community={community}
+                    isLoggedIn={isLoggedIn}
+                    guestJoinHref={guestJoin.href}
+                    guestJoinLabel={guestJoin.label}
+                    guestJoinOpenInNewTab={guestJoin.openInNewTab}
+                  />
                 </li>
               ))}
             </ul>

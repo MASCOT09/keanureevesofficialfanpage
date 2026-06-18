@@ -1,41 +1,62 @@
-import Link from "next/link";
 import { WelcomeHero } from "@/components/home/WelcomeHero";
 import { Button } from "@/components/ui/Button";
+import { SiteLink } from "@/components/ui/SiteLink";
+import { pickSiteButton, type SiteButtonMap } from "@/lib/site-buttons";
 
 interface HomeContentProps {
   celebrityName: string;
   tagline: string;
   heroVideoUrl: string;
   isLoggedIn: boolean;
+  buttons: SiteButtonMap;
 }
 
-const features = [
+const featureDefs = [
   {
     title: "Giveaways",
     desc: "Win exclusive merch, signed items, and VIP access.",
-    href: "/giveaways",
+    guestKey: null,
+    memberKey: "home.feature.giveaways",
   },
   {
     title: "Meet & Greet",
     desc: "Register for upcoming events and connect in person.",
-    href: "/meet-and-greet",
+    guestKey: null,
+    memberKey: "home.feature.meet_greet",
   },
   {
     title: "Communities",
     desc: "Join fan groups on Telegram and beyond.",
-    href: "/communities",
+    guestKey: "home.feature.communities_guest",
+    memberKey: "home.feature.communities_member",
   },
   {
     title: "Private DMs",
     desc: "Reach out via WhatsApp, Zangi, or Telegram.",
-    href: "/contact",
+    guestKey: null,
+    memberKey: "home.feature.contact",
   },
-];
+] as const;
 
-export function HomeContent({ heroVideoUrl, isLoggedIn }: HomeContentProps) {
-  const visibleFeatures = isLoggedIn
-    ? features
-    : features.filter((item) => item.href === "/communities");
+export function HomeContent({ heroVideoUrl, isLoggedIn, buttons }: HomeContentProps) {
+  const visibleFeatures = featureDefs
+    .filter((item) => isLoggedIn || item.guestKey)
+    .map((item) => {
+      const key = isLoggedIn ? item.memberKey! : item.guestKey!;
+      const btn = pickSiteButton(buttons, key);
+      return {
+        key,
+        title: item.title,
+        desc: item.desc,
+        href: btn.href,
+        openInNewTab: btn.openInNewTab,
+      };
+    });
+
+  const guestPrimary = pickSiteButton(buttons, "home.cta.guest_primary");
+  const guestSecondary = pickSiteButton(buttons, "home.cta.guest_secondary");
+  const memberPrimary = pickSiteButton(buttons, "home.cta.member_primary");
+  const memberSecondary = pickSiteButton(buttons, "home.cta.member_secondary");
 
   const stats = isLoggedIn
     ? [
@@ -50,7 +71,6 @@ export function HomeContent({ heroVideoUrl, isLoggedIn }: HomeContentProps) {
     <>
       <WelcomeHero heroVideoUrl={heroVideoUrl} />
 
-      {/* Stats strip */}
       <section className="border-y border-border/60 bg-card/40">
         <div
           className={`mx-auto grid max-w-7xl gap-8 px-6 py-14 lg:px-10 ${
@@ -66,7 +86,6 @@ export function HomeContent({ heroVideoUrl, isLoggedIn }: HomeContentProps) {
         </div>
       </section>
 
-      {/* Feature cards */}
       <section className="mx-auto max-w-7xl px-6 py-28 lg:px-10">
         <div className="mb-16 text-center">
           <p className="mb-3 text-xs uppercase tracking-[0.4em] text-accent">Explore</p>
@@ -76,9 +95,10 @@ export function HomeContent({ heroVideoUrl, isLoggedIn }: HomeContentProps) {
         </div>
         <div className={`grid gap-6 ${isLoggedIn ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-1 lg:max-w-md lg:mx-auto"}`}>
           {visibleFeatures.map((item) => (
-            <Link
-              key={item.href}
+            <SiteLink
+              key={item.key}
               href={item.href}
+              openInNewTab={item.openInNewTab}
               className="luxury-card card-shine group p-8"
             >
               <div className="mb-6 h-px w-8 bg-accent/60 transition-all duration-300 group-hover:w-12" />
@@ -89,12 +109,11 @@ export function HomeContent({ heroVideoUrl, isLoggedIn }: HomeContentProps) {
               <span className="text-xs uppercase tracking-[0.2em] text-accent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                 Explore
               </span>
-            </Link>
+            </SiteLink>
           ))}
         </div>
       </section>
 
-      {/* CTA */}
       <section className="mx-auto max-w-7xl px-6 pb-28 lg:px-10">
         <div className="glass relative overflow-hidden rounded-[20px] px-8 py-20 text-center sm:px-16">
           <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-accent/10 blur-3xl" />
@@ -110,16 +129,20 @@ export function HomeContent({ heroVideoUrl, isLoggedIn }: HomeContentProps) {
           <div className="relative flex flex-wrap justify-center gap-4">
             {isLoggedIn ? (
               <>
-                <Button href="/dashboard">Go to Dashboard</Button>
-                <Button href="/communities" variant="secondary">
-                  Browse Communities
+                <Button href={memberPrimary.href} openInNewTab={memberPrimary.openInNewTab}>
+                  {memberPrimary.label}
+                </Button>
+                <Button href={memberSecondary.href} variant="secondary" openInNewTab={memberSecondary.openInNewTab}>
+                  {memberSecondary.label}
                 </Button>
               </>
             ) : (
               <>
-                <Button href="/signup">Create Account</Button>
-                <Button href="/communities" variant="secondary">
-                  Browse Communities
+                <Button href={guestPrimary.href} openInNewTab={guestPrimary.openInNewTab}>
+                  {guestPrimary.label}
+                </Button>
+                <Button href={guestSecondary.href} variant="secondary" openInNewTab={guestSecondary.openInNewTab}>
+                  {guestSecondary.label}
                 </Button>
               </>
             )}

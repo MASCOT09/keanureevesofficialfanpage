@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isExternalHref } from "@/lib/site-buttons";
 
 type ButtonVariant = "primary" | "secondary" | "ghost";
 
@@ -13,6 +14,7 @@ const variants: Record<ButtonVariant, string> = {
 interface ButtonProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
   variant?: ButtonVariant;
+  openInNewTab?: boolean;
   children: React.ReactNode;
   className?: string;
 }
@@ -20,16 +22,24 @@ interface ButtonProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
 export function Button({
   href,
   variant = "primary",
+  openInNewTab = false,
   children,
   className = "",
   ...props
 }: ButtonProps) {
+  const classNames = `inline-flex items-center justify-center rounded-full px-8 py-3.5 text-sm font-medium tracking-wide transition-all duration-400 ${variants[variant]} ${className}`;
+  const external = openInNewTab || isExternalHref(href);
+
+  if (external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={classNames} {...props}>
+        {children}
+      </a>
+    );
+  }
+
   return (
-    <Link
-      href={href}
-      className={`inline-flex items-center justify-center rounded-full px-8 py-3.5 text-sm font-medium tracking-wide transition-all duration-400 ${variants[variant]} ${className}`}
-      {...props}
-    >
+    <Link href={href} className={classNames} {...props}>
       {children}
     </Link>
   );

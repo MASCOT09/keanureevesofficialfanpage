@@ -7,7 +7,7 @@
  *
  * Usage: npm run migrate:supabase
  */
-import * as XLSX from "xlsx";
+import XLSX from "xlsx";
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
@@ -25,6 +25,7 @@ const SHEET_TO_TABLE = {
   meet_greet_registrations: "meet_greet_registrations",
   communities: "communities",
   contact_links: "contact_links",
+  site_buttons: "site_buttons",
   messages: "messages",
   notifications: "notifications",
   membership_applications: "membership_applications",
@@ -44,11 +45,15 @@ function loadEnvLocal() {
   }
 }
 
-function normalizeRow(row) {
+function normalizeRow(row, table) {
   const out = { ...row };
   if (typeof out.email === "string") out.email = out.email.toLowerCase();
   if ("is_active" in out) out.is_active = out.is_active === true || out.is_active === "true";
   if ("is_read" in out) out.is_read = out.is_read === true || out.is_read === "true";
+  if (table === "app_users") {
+    if (out.membership_tier == null || out.membership_tier === "") out.membership_tier = "none";
+    if (out.membership_status == null || out.membership_status === "") out.membership_status = "none";
+  }
   return out;
 }
 
@@ -59,7 +64,7 @@ async function upsertTable(client, table, rows) {
   }
   const batchSize = 100;
   for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize).map(normalizeRow);
+    const batch = rows.slice(i, i + batchSize).map((row) => normalizeRow(row, table));
     const { error } = await client.from(table).upsert(batch, { onConflict: "id" });
     if (error) throw new Error(`${table}: ${error.message}`);
   }

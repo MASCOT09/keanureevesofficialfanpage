@@ -9,6 +9,7 @@ import type {
   MeetGreetEvent,
   MeetGreetRegistration,
   Profile,
+  SiteButton,
   SiteSettings,
   UserRole,
 } from "@/types/database";
@@ -1057,6 +1058,76 @@ export async function updateContactLink(
 export async function deleteContactLink(id: string) {
   const client = getSupabaseAdmin();
   const { error } = await client.from("contact_links").delete().eq("id", id);
+  throwWriteError(error);
+}
+
+// ─── Site buttons ───────────────────────────────────────────────
+
+interface SiteButtonRow {
+  id: string;
+  button_key: string;
+  section: string;
+  label: string;
+  href: string;
+  description: string | null;
+  is_active: boolean;
+  sort_order: number;
+  open_in_new_tab: boolean;
+  updated_at: string;
+}
+
+function toSiteButton(row: SiteButtonRow): SiteButton {
+  return {
+    id: row.id,
+    button_key: row.button_key,
+    section: row.section,
+    label: row.label,
+    href: row.href,
+    description: row.description,
+    is_active: row.is_active,
+    sort_order: row.sort_order,
+    open_in_new_tab: row.open_in_new_tab,
+    updated_at: row.updated_at,
+  };
+}
+
+export async function getAllSiteButtons(): Promise<SiteButton[]> {
+  const client = getSupabaseAdmin();
+  const { data, error } = await client.from("site_buttons").select("*");
+  throwReadError(error);
+  return ((data ?? []) as SiteButtonRow[])
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(toSiteButton);
+}
+
+export async function updateSiteButton(
+  id: string,
+  data: {
+    label: string;
+    href: string;
+    is_active: boolean;
+    open_in_new_tab: boolean;
+  }
+) {
+  const client = getSupabaseAdmin();
+  const { data: existing, error: existingError } = await client
+    .from("site_buttons")
+    .select("id")
+    .eq("id", id)
+    .maybeSingle<{ id: string }>();
+  throwReadError(existingError);
+  if (!existing) throw new Error("Site button not found.");
+
+  const { error } = await client
+    .from("site_buttons")
+    .update({
+      label: data.label,
+      href: data.href,
+      is_active: data.is_active,
+      open_in_new_tab: data.open_in_new_tab,
+      updated_at: now(),
+    })
+    .eq("id", id);
   throwWriteError(error);
 }
 
