@@ -16,12 +16,9 @@ import type {
 import type { Message, MessageThread, Notification } from "@/types/messages";
 import { buildMessageThreads } from "@/lib/message-threads";
 import {
-  notifyAdminsOfNewFanSignup,
-  notifyAdminsOfNewMembershipApplication,
   notifyAdminsOfUnreadFanMessage,
   notifyFanOfMembershipUpgrade,
   notifyFanOfUnreadInboxMessage,
-  notifyFanOfWelcomeSignup,
 } from "@/lib/message-email-notifications";
 import type { MembershipApplication, MembershipApplicationStatus } from "@/types/membership";
 import { normalizeContactUrl } from "@/lib/contact-dms";
@@ -310,31 +307,23 @@ export async function createUser(
       const signupMessage = `${displayName} (${user.email}) just joined${
         user.country ? ` from ${user.country}` : ""
       }.`;
-      await client.from("notifications").insert(
-        adminList.map((admin) => ({
-          id: randomUUID(),
-          user_id: admin.id,
-          title: "New fan signup",
-          message: signupMessage,
-          is_read: false,
-          created_at: timestamp,
-        }))
-      );
-
-      await notifyAdminsOfNewFanSignup({
-        adminEmails: adminList.map((admin) => admin.email),
-        fanName: displayName,
-        fanEmail: user.email,
-        country: user.country ?? null,
-      });
+      try {
+        await client.from("notifications").insert(
+          adminList.map((admin) => ({
+            id: randomUUID(),
+            user_id: admin.id,
+            title: "New fan signup",
+            message: signupMessage,
+            is_read: false,
+            created_at: timestamp,
+          }))
+        );
+      } catch {
+        // In-site alert is optional.
+      }
     }
-
-    await notifyFanOfWelcomeSignup({
-      fanEmail: user.email,
-      fanName: displayName,
-    });
   } catch {
-    // Signup succeeded — email alerts are optional.
+    // In-site alerts are optional.
   }
 
   return user;
@@ -634,28 +623,23 @@ export async function createMembershipApplication(
       const planName = getMembershipLabel(tier);
       const amount = getMembershipPrice(tier);
       const applicationMessage = `${user.display_name} applied for ${planName} ($${amount}).`;
-
-      await client.from("notifications").insert(
-        adminList.map((admin) => ({
-          id: randomUUID(),
-          user_id: admin.id,
-          title: "New membership application",
-          message: applicationMessage,
-          is_read: false,
-          created_at: timestamp,
-        }))
-      );
-
-      await notifyAdminsOfNewMembershipApplication({
-        adminEmails: adminList.map((admin) => admin.email),
-        fanName: user.display_name,
-        fanEmail: user.email,
-        tier,
-        amount,
-      });
+      try {
+        await client.from("notifications").insert(
+          adminList.map((admin) => ({
+            id: randomUUID(),
+            user_id: admin.id,
+            title: "New membership application",
+            message: applicationMessage,
+            is_read: false,
+            created_at: timestamp,
+          }))
+        );
+      } catch {
+        // In-site alert is optional.
+      }
     }
   } catch {
-    // Application was saved — email alert is optional.
+    // In-site alerts are optional.
   }
 }
 

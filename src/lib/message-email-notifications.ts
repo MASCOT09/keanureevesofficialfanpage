@@ -1,5 +1,5 @@
-import { sendFanEmails } from "@/lib/email";
-import { getMembershipLabel, MEMBERSHIP_PLANS } from "@/lib/membership";
+import { sendFanEmail, sendFanEmails } from "@/lib/email";
+import { getMembershipLabel, getMembershipPrice, MEMBERSHIP_PLANS } from "@/lib/membership";
 import type { MembershipTier } from "@/types/membership";
 import { getSiteUrl } from "@/lib/seo";
 
@@ -7,32 +7,104 @@ function inboxUrl(path: string): string {
   return `${getSiteUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export async function notifyFanOfWelcomeSignup(input: {
-  fanEmail: string;
+function logEmailBatch(label: string, result: { delivered: number; simulated: number; failed: number }) {
+  console.info(
+    `[email] ${label}: delivered=${result.delivered} simulated=${result.simulated} failed=${result.failed}`
+  );
+}
+
+export async function sendSignupEmailAlerts(input: {
   fanName: string;
+  fanEmail: string;
+  country: string | null;
+  adminEmails: string[];
 }): Promise<void> {
-  const firstName = input.fanName.trim().split(/\s+/)[0] || "Fan";
-  try {
-    await sendFanEmails([
-      {
-        to: input.fanEmail,
-        subject: "Welcome to the fan community",
+  console.info("[email] signup alerts starting", {
+    fan: input.fanEmail,
+    adminCount: input.adminEmails.length,
+  });
+
+  if (input.adminEmails.length) {
+    const adminResult = await sendFanEmails(
+      input.adminEmails.map((to) => ({
+        to,
+        subject: "New fan signup on your site",
         text: [
-          `Hi ${firstName},`,
+          "A new fan just created an account.",
           "",
-          "Your account is ready on the official Keanu Reeves fan community.",
+          `Name: ${input.fanName}`,
+          `Email: ${input.fanEmail}`,
+          input.country ? `Country: ${input.country}` : "Country: not provided",
           "",
-          "Log in to explore giveaways, meet & greets, membership plans, and your member inbox.",
+          "Log in to the admin panel to review the new member.",
           "",
-          `Open your dashboard: ${inboxUrl("/dashboard")}`,
+          `Open Team & Admins: ${inboxUrl("/admin/users")}`,
           "",
-          "— Keanu Fan Team",
+          "— Keanu Fan Site",
         ].join("\n"),
-      },
-    ]);
-  } catch {
-    // Signup succeeded — email is optional.
+      }))
+    );
+    logEmailBatch("admin signup alert", adminResult);
   }
+
+  const firstName = input.fanName.trim().split(/\s+/)[0] || "Fan";
+  const welcomeResult = await sendFanEmail({
+    to: input.fanEmail,
+    subject: "Welcome to the fan community",
+    text: [
+      `Hi ${firstName},`,
+      "",
+      "Your account is ready on the official Keanu Reeves fan community.",
+      "",
+      "Log in to explore giveaways, meet & greets, membership plans, and your member inbox.",
+      "",
+      `Open your dashboard: ${inboxUrl("/dashboard")}`,
+      "",
+      "— Keanu Fan Team",
+    ].join("\n"),
+  });
+
+  console.info("[email] fan welcome signup", welcomeResult);
+}
+
+export async function sendMembershipApplicationEmailAlerts(input: {
+  fanName: string;
+  fanEmail: string;
+  tier: Exclude<MembershipTier, "none">;
+  adminEmails: string[];
+}): Promise<void> {
+  const planName = getMembershipLabel(input.tier);
+  const amount = getMembershipPrice(input.tier);
+
+  console.info("[email] membership application alerts starting", {
+    fan: input.fanEmail,
+    tier: input.tier,
+    adminCount: input.adminEmails.length,
+  });
+
+  if (!input.adminEmails.length) return;
+
+  const result = await sendFanEmails(
+    input.adminEmails.map((to) => ({
+      to,
+      subject: "New membership application waiting for review",
+      text: [
+        "A fan just applied for membership.",
+        "",
+        `Name: ${input.fanName}`,
+        `Email: ${input.fanEmail}`,
+        `Plan: ${planName}`,
+        `Amount: $${amount}`,
+        "",
+        "Log in to approve or reject the application.",
+        "",
+        `Open Membership Applications: ${inboxUrl("/admin/memberships")}`,
+        "",
+        "— Keanu Fan Site",
+      ].join("\n"),
+    }))
+  );
+  logEmailBatch("admin membership application", result);
 }
 
 export async function notifyFanOfUnreadInboxMessage(input: {
@@ -104,79 +176,6 @@ export async function notifyFanOfMembershipUpgrade(input: {
     ]);
   } catch {
     // Membership was saved — email is optional.
-  }
-}
-
-export async function notifyAdminsOfNewMembershipApplication(input: {
-  adminEmails: string[];
-  fanName: string;
-  fanEmail: string;
-  tier: Exclude<MembershipTier, "none">;
-  amount: number;
-}): Promise<void> {
-  if (!input.adminEmails.length) return;
-
-  const planName = getMembershipLabel(input.tier);
-  const adminUrl = inboxUrl("/admin/memberships");
-
-  try {
-    await sendFanEmails(
-      input.adminEmails.map((to) => ({
-        to,
-        subject: "New membership application waiting for review",
-        text: [
-          "A fan just applied for membership.",
-          "",
-          `Name: ${input.fanName}`,
-          `Email: ${input.fanEmail}`,
-          `Plan: ${planName}`,
-          `Amount: $${input.amount}`,
-          "",
-          "Log in to approve or reject the application.",
-          "",
-          `Open Membership Applications: ${adminUrl}`,
-          "",
-          "— Keanu Fan Site",
-        ].join("\n"),
-      }))
-    );
-  } catch {
-    // Application was saved — email alert is optional.
-  }
-}
-
-export async function notifyAdminsOfNewFanSignup(input: {
-  adminEmails: string[];
-  fanName: string;
-  fanEmail: string;
-  country: string | null;
-}): Promise<void> {
-  if (!input.adminEmails.length) return;
-
-  const adminUrl = inboxUrl("/admin/users");
-
-  try {
-    await sendFanEmails(
-      input.adminEmails.map((to) => ({
-        to,
-        subject: "New fan signup on your site",
-        text: [
-          "A new fan just created an account.",
-          "",
-          `Name: ${input.fanName}`,
-          `Email: ${input.fanEmail}`,
-          input.country ? `Country: ${input.country}` : "Country: not provided",
-          "",
-          "Log in to the admin panel to review the new member.",
-          "",
-          `Open Team & Admins: ${adminUrl}`,
-          "",
-          "— Keanu Fan Site",
-        ].join("\n"),
-      }))
-    );
-  } catch {
-    // Signup succeeded — email alert is optional.
   }
 }
 

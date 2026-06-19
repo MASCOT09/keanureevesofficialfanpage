@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
@@ -7,9 +8,11 @@ import { createSession, destroySession } from "@/lib/session";
 import {
   createUser,
   findUserByEmail,
+  getAdminEmails,
   isExcelBackendReady,
   verifyPassword,
 } from "@/lib/repository";
+import { sendSignupEmailAlerts } from "@/lib/message-email-notifications";
 import { validateEmail } from "@/lib/validate-email";
 
 export type AuthActionState = {
@@ -114,6 +117,21 @@ export async function signupAction(
     email: user.email,
     role: user.role,
   });
+
+  after(async () => {
+    try {
+      const adminEmails = await getAdminEmails();
+      await sendSignupEmailAlerts({
+        fanName: displayName,
+        fanEmail: user.email,
+        country,
+        adminEmails,
+      });
+    } catch (error) {
+      console.error("[email] signup after() failed", error);
+    }
+  });
+
   revalidatePath("/dashboard");
   redirect("/dashboard?welcome=1");
 }

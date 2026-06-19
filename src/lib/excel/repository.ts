@@ -25,12 +25,9 @@ import type {
 import type { Message, MessageThread } from "@/types/messages";
 import { buildMessageThreads } from "@/lib/message-threads";
 import {
-  notifyAdminsOfNewFanSignup,
-  notifyAdminsOfNewMembershipApplication,
   notifyAdminsOfUnreadFanMessage,
   notifyFanOfMembershipUpgrade,
   notifyFanOfUnreadInboxMessage,
-  notifyFanOfWelcomeSignup,
 } from "@/lib/message-email-notifications";
 import { normalizeContactUrl } from "@/lib/contact-dms";
 import { SITE_BUTTON_DEFAULTS } from "@/lib/site-button-defaults";
@@ -182,28 +179,6 @@ export async function createUser(
     messages,
     notifications,
   });
-
-  if (admins.length) {
-    try {
-      await notifyAdminsOfNewFanSignup({
-        adminEmails: admins.map((admin) => admin.email),
-        fanName: displayName,
-        fanEmail: user.email,
-        country: user.country ?? null,
-      });
-    } catch {
-      // Signup succeeded — email alert is optional.
-    }
-  }
-
-  try {
-    await notifyFanOfWelcomeSignup({
-      fanEmail: user.email,
-      fanName: displayName,
-    });
-  } catch {
-    // Signup succeeded — email is optional.
-  }
 
   return user;
 }
@@ -483,20 +458,6 @@ export async function createMembershipApplication(
     });
   }
   writeSheet("notifications", notifications);
-
-  if (admins.length) {
-    try {
-      await notifyAdminsOfNewMembershipApplication({
-        adminEmails: admins.map((admin) => admin.email),
-        fanName: user.display_name,
-        fanEmail: user.email,
-        tier,
-        amount,
-      });
-    } catch {
-      // Application was saved — email alert is optional.
-    }
-  }
 }
 
 async function notifyMembershipDecision(
