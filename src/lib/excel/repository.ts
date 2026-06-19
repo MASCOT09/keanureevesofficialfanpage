@@ -24,6 +24,10 @@ import type {
 } from "@/types/database";
 import type { Message, MessageThread } from "@/types/messages";
 import { buildMessageThreads } from "@/lib/message-threads";
+import {
+  notifyAdminsOfUnreadFanMessage,
+  notifyFanOfUnreadInboxMessage,
+} from "@/lib/message-email-notifications";
 import { normalizeContactUrl } from "@/lib/contact-dms";
 import { SITE_BUTTON_DEFAULTS } from "@/lib/site-button-defaults";
 import {
@@ -226,6 +230,12 @@ export async function getAdminUserList(): Promise<AdminUserSummary[]> {
 
 export async function countAdmins(): Promise<number> {
   return readSheet<UserRow>("users").filter((u) => u.role === "admin").length;
+}
+
+export async function getAdminEmails(): Promise<string[]> {
+  return readSheet<UserRow>("users")
+    .filter((u) => u.role === "admin")
+    .map((u) => u.email);
 }
 
 export async function updateUserRole(
@@ -1331,6 +1341,14 @@ export async function createFanMessageThread(input: {
     created_at: now(),
   });
   writeSheet("messages", messages);
+
+  const adminEmails = await getAdminEmails();
+  await notifyAdminsOfUnreadFanMessage({
+    adminEmails,
+    fanName: input.displayName,
+    threadId: messageId,
+  });
+
   return messageId;
 }
 
@@ -1378,8 +1396,14 @@ export async function replyAsFan(input: {
   }
 
   writeSheet("messages", messages);
-}
 
+  const adminEmails = await getAdminEmails();
+  await notifyAdminsOfUnreadFanMessage({
+    adminEmails,
+    fanName: input.displayName,
+    threadId: input.threadId,
+  });
+}
 export async function replyAsAdminToThread(input: {
   threadId: string;
   body: string;
@@ -1421,6 +1445,15 @@ export async function replyAsAdminToThread(input: {
   }
 
   writeSheet("messages", messages);
+
+  const fan = readSheet<UserRow>("users").find((u) => u.id === first.user_id);
+  if (fan) {
+    await notifyFanOfUnreadInboxMessage({
+      fanEmail: fan.email,
+      fanName: fan.display_name,
+      threadId: input.threadId,
+    });
+  }
 }
 
 export async function markThreadReadByFan(threadId: string, userId: string): Promise<void> {

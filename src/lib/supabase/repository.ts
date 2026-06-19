@@ -15,6 +15,10 @@ import type {
 } from "@/types/database";
 import type { Message, MessageThread, Notification } from "@/types/messages";
 import { buildMessageThreads } from "@/lib/message-threads";
+import {
+  notifyAdminsOfUnreadFanMessage,
+  notifyFanOfUnreadInboxMessage,
+} from "@/lib/message-email-notifications";
 import type { MembershipApplication, MembershipApplicationStatus } from "@/types/membership";
 import { normalizeContactUrl } from "@/lib/contact-dms";
 import {
@@ -372,6 +376,16 @@ export async function countAdmins(): Promise<number> {
     .eq("role", "admin");
   throwReadError(error);
   return count ?? 0;
+}
+
+export async function getAdminEmails(): Promise<string[]> {
+  const client = getSupabaseAdmin();
+  const { data, error } = await client
+    .from("app_users")
+    .select("email")
+    .eq("role", "admin");
+  throwReadError(error);
+  return ((data ?? []) as { email: string }[]).map((row) => row.email);
 }
 
 export async function updateUserRole(
@@ -1551,6 +1565,14 @@ export async function createFanMessageThread(input: {
     created_at: now(),
   });
   throwWriteError(error);
+
+  const adminEmails = await getAdminEmails();
+  await notifyAdminsOfUnreadFanMessage({
+    adminEmails,
+    fanName: input.displayName,
+    threadId: messageId,
+  });
+
   return messageId;
 }
 
@@ -1603,6 +1625,13 @@ export async function replyAsFan(input: {
       .in("id", adminMessageIds);
     throwWriteError(updateError);
   }
+
+  const adminEmails = await getAdminEmails();
+  await notifyAdminsOfUnreadFanMessage({
+    adminEmails,
+    fanName: input.displayName,
+    threadId: input.threadId,
+  });
 }
 
 export async function replyAsAdminToThread(input: {
@@ -1648,6 +1677,20 @@ export async function replyAsAdminToThread(input: {
       .update({ is_read: true })
       .in("id", fanMessageIds);
     throwWriteError(updateError);
+  }
+
+  const { data: fan, error: fanError } = await client
+    .from("app_users")
+    .select("email, display_name")
+    .eq("id", first.user_id)
+    .maybeSingle<{ email: string; display_name: string }>();
+  throwReadError(fanError);
+  if (fan) {
+    await notifyFanOfUnreadInboxMessage({
+      fanEmail: fan.email,
+      fanName: fan.display_name,
+      threadId: input.threadId,
+    });
   }
 }
 
