@@ -68,6 +68,9 @@ export async function updateUserMembershipAction(targetUserId: string, formData:
   await updateUserMembership(targetUserId, tier);
   revalidatePath("/admin/users");
   revalidatePath("/dashboard", "layout");
+  revalidatePath("/dashboard/messages");
+  revalidatePath("/dashboard/notifications");
+  revalidatePath("/dashboard/membership");
 }
 
 export async function sendAdminMessageAction(formData: FormData) {

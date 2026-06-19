@@ -1,8 +1,10 @@
 import { sendFanEmails } from "@/lib/email";
+import { getMembershipLabel, MEMBERSHIP_PLANS } from "@/lib/membership";
+import type { MembershipTier } from "@/types/membership";
+import { getSiteUrl } from "@/lib/seo";
 
 function inboxUrl(path: string): string {
-  const base = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
-  return `${base.replace(/\/$/, "")}${path}`;
+  return `${getSiteUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 export async function notifyFanOfUnreadInboxMessage(input: {
@@ -30,6 +32,50 @@ export async function notifyFanOfUnreadInboxMessage(input: {
     ]);
   } catch {
     // Inbox was saved — email is optional.
+  }
+}
+
+export async function notifyFanOfMembershipUpgrade(input: {
+  fanEmail: string;
+  fanName: string;
+  tier: Exclude<MembershipTier, "none">;
+  previousTier: MembershipTier;
+}): Promise<void> {
+  const firstName = input.fanName.trim().split(/\s+/)[0] || "Fan";
+  const planName = getMembershipLabel(input.tier);
+  const plan = MEMBERSHIP_PLANS.find((item) => item.tier === input.tier);
+  const highlights = plan?.highlights.slice(0, 3).map((line) => `• ${line}`).join("\n") ?? "";
+  const membershipUrl = inboxUrl("/dashboard/membership");
+
+  const headline =
+    input.previousTier === "none"
+      ? `You've just attained ${planName} membership.`
+      : `You've been upgraded to ${planName}.`;
+
+  try {
+    await sendFanEmails([
+      {
+        to: input.fanEmail,
+        subject: `Welcome to ${planName}`,
+        text: [
+          `Hi ${firstName},`,
+          "",
+          headline,
+          "",
+          "Your member benefits are now active on the official Keanu Reeves fan community.",
+          highlights ? `\nWhat's included:\n${highlights}` : "",
+          "",
+          `View your membership: ${membershipUrl}`,
+          "",
+          "Welcome aboard,",
+          "Keanu Fan Team",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      },
+    ]);
+  } catch {
+    // Membership was saved — email is optional.
   }
 }
 

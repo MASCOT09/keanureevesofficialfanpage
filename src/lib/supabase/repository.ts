@@ -18,11 +18,13 @@ import { buildMessageThreads } from "@/lib/message-threads";
 import {
   notifyAdminsOfNewFanSignup,
   notifyAdminsOfUnreadFanMessage,
+  notifyFanOfMembershipUpgrade,
   notifyFanOfUnreadInboxMessage,
 } from "@/lib/message-email-notifications";
 import type { MembershipApplication, MembershipApplicationStatus } from "@/types/membership";
 import { normalizeContactUrl } from "@/lib/contact-dms";
 import {
+  getMembershipLabel,
   getMembershipPrice,
   normalizeMembershipStatus,
   normalizeMembershipTier,
@@ -472,14 +474,23 @@ export async function updateUserMembership(
   const client = getSupabaseAdmin();
   const { data: target, error: targetError } = await client
     .from("app_users")
-    .select("id, role")
+    .select("id, role, email, display_name, membership_tier")
     .eq("id", targetUserId)
-    .maybeSingle<{ id: string; role: UserRole }>();
+    .maybeSingle<{
+      id: string;
+      role: UserRole;
+      email: string;
+      display_name: string;
+      membership_tier: string | null;
+    }>();
   throwReadError(targetError);
   if (!target) throw new Error("User not found.");
   if (target.role === "admin") {
     throw new Error("Admins always have Platinum membership.");
   }
+
+  const previousTier = normalizeMembershipTier(target.membership_tier);
+  if (previousTier === tier) return;
 
   const { error: updateError } = await client
     .from("app_users")
@@ -489,6 +500,40 @@ export async function updateUserMembership(
     })
     .eq("id", targetUserId);
   throwWriteError(updateError);
+
+  if (tier === "none") return;
+
+  const planName = getMembershipLabel(tier);
+  const firstName = target.display_name.trim().split(/\s+/)[0] || "Fan";
+
+  await notifyMembershipDecision(
+    targetUserId,
+    `Membership update: ${planName}`,
+    [
+      `Hi ${firstName},`,
+      "",
+      previousTier === "none"
+        ? `You've just attained ${planName} membership.`
+        : `You've been upgraded to ${planName}.`,
+      "",
+      "Your member benefits are now active. Open your dashboard to explore what's included in your tier.",
+      "",
+      "— Keanu Fan Team",
+    ].join("\n"),
+    "Membership updated",
+    `You're now a ${planName}.`
+  );
+
+  try {
+    await notifyFanOfMembershipUpgrade({
+      fanEmail: target.email,
+      fanName: target.display_name,
+      tier,
+      previousTier,
+    });
+  } catch {
+    // Membership was saved — email is optional.
+  }
 }
 
 // ─── Membership ───────────────────────────────────────────────

@@ -27,11 +27,13 @@ import { buildMessageThreads } from "@/lib/message-threads";
 import {
   notifyAdminsOfNewFanSignup,
   notifyAdminsOfUnreadFanMessage,
+  notifyFanOfMembershipUpgrade,
   notifyFanOfUnreadInboxMessage,
 } from "@/lib/message-email-notifications";
 import { normalizeContactUrl } from "@/lib/contact-dms";
 import { SITE_BUTTON_DEFAULTS } from "@/lib/site-button-defaults";
 import {
+  getMembershipLabel,
   getMembershipPrice,
   normalizeMembershipStatus,
   normalizeMembershipTier,
@@ -318,9 +320,47 @@ export async function updateUserMembership(
     throw new Error("Admins always have Platinum membership.");
   }
 
+  const previousTier = normalizeMembershipTier(users[targetIndex].membership_tier);
+  if (previousTier === tier) return;
+
   users[targetIndex].membership_tier = tier;
   users[targetIndex].membership_status = tier === "none" ? "none" : "active";
   writeSheet("users", users);
+
+  if (tier === "none") return;
+
+  const user = users[targetIndex];
+  const planName = getMembershipLabel(tier);
+  const firstName = user.display_name.trim().split(/\s+/)[0] || "Fan";
+
+  await notifyMembershipDecision(
+    user.id,
+    `Membership update: ${planName}`,
+    [
+      `Hi ${firstName},`,
+      "",
+      previousTier === "none"
+        ? `You've just attained ${planName} membership.`
+        : `You've been upgraded to ${planName}.`,
+      "",
+      "Your member benefits are now active. Open your dashboard to explore what's included in your tier.",
+      "",
+      "— Keanu Fan Team",
+    ].join("\n"),
+    "Membership updated",
+    `You're now a ${planName}.`
+  );
+
+  try {
+    await notifyFanOfMembershipUpgrade({
+      fanEmail: user.email,
+      fanName: user.display_name,
+      tier,
+      previousTier,
+    });
+  } catch {
+    // Membership was saved — email is optional.
+  }
 }
 
 // ─── Membership ───────────────────────────────────────────────
