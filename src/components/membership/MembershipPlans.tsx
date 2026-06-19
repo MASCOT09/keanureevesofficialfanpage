@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { applyForMembershipAction } from "@/app/actions/membership-actions";
@@ -86,12 +87,12 @@ export function MembershipPlans({
             Your membership application is under review
             {latestApplication ? ` (${latestApplication.tier}, $${latestApplication.amount})` : ""}.
           </p>
-          <a
+          <Link
             href="/dashboard/messages?new=membership"
             className="mt-3 inline-block text-sm font-medium text-foreground underline decoration-accent/50 underline-offset-4 hover:text-accent"
           >
             Message the team about your application →
-          </a>
+          </Link>
         </div>
       )}
 
