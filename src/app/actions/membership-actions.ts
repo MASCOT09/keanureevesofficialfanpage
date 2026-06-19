@@ -20,6 +20,7 @@ export async function applyForMembershipAction(tier: MembershipApplication["tier
     revalidatePath("/dashboard/membership");
     revalidatePath("/dashboard");
     revalidatePath("/admin/memberships");
+    revalidatePath("/dashboard/notifications");
     return { success: true };
   } catch (error) {
     return {

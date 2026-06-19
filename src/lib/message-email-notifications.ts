@@ -79,6 +79,44 @@ export async function notifyFanOfMembershipUpgrade(input: {
   }
 }
 
+export async function notifyAdminsOfNewMembershipApplication(input: {
+  adminEmails: string[];
+  fanName: string;
+  fanEmail: string;
+  tier: Exclude<MembershipTier, "none">;
+  amount: number;
+}): Promise<void> {
+  if (!input.adminEmails.length) return;
+
+  const planName = getMembershipLabel(input.tier);
+  const adminUrl = inboxUrl("/admin/memberships");
+
+  try {
+    await sendFanEmails(
+      input.adminEmails.map((to) => ({
+        to,
+        subject: "New membership application waiting for review",
+        text: [
+          "A fan just applied for membership.",
+          "",
+          `Name: ${input.fanName}`,
+          `Email: ${input.fanEmail}`,
+          `Plan: ${planName}`,
+          `Amount: $${input.amount}`,
+          "",
+          "Log in to approve or reject the application.",
+          "",
+          `Open Membership Applications: ${adminUrl}`,
+          "",
+          "— Keanu Fan Site",
+        ].join("\n"),
+      }))
+    );
+  } catch {
+    // Application was saved — email alert is optional.
+  }
+}
+
 export async function notifyAdminsOfNewFanSignup(input: {
   adminEmails: string[];
   fanName: string;

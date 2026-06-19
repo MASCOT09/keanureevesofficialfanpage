@@ -17,6 +17,7 @@ import type { Message, MessageThread, Notification } from "@/types/messages";
 import { buildMessageThreads } from "@/lib/message-threads";
 import {
   notifyAdminsOfNewFanSignup,
+  notifyAdminsOfNewMembershipApplication,
   notifyAdminsOfUnreadFanMessage,
   notifyFanOfMembershipUpgrade,
   notifyFanOfUnreadInboxMessage,
@@ -614,6 +615,39 @@ export async function createMembershipApplication(
     .update({ membership_status: "pending" })
     .eq("id", userId);
   throwWriteError(userError);
+
+  try {
+    const { data: admins, error: adminQueryError } = await client
+      .from("app_users")
+      .select("id, email")
+      .eq("role", "admin");
+    if (!adminQueryError && admins?.length) {
+      const planName = getMembershipLabel(tier);
+      const amount = getMembershipPrice(tier);
+      const applicationMessage = `${user.display_name} applied for ${planName} ($${amount}).`;
+      const { error: notificationError } = await client.from("notifications").insert(
+        admins.map((admin) => ({
+          id: randomUUID(),
+          user_id: admin.id,
+          title: "New membership application",
+          message: applicationMessage,
+          is_read: false,
+          created_at: timestamp,
+        }))
+      );
+      if (!notificationError) {
+        await notifyAdminsOfNewMembershipApplication({
+          adminEmails: admins.map((admin) => admin.email),
+          fanName: user.display_name,
+          fanEmail: user.email,
+          tier,
+          amount,
+        });
+      }
+    }
+  } catch {
+    // Application was saved — email alert is optional.
+  }
 }
 
 async function notifyMembershipDecision(

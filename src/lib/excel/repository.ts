@@ -26,6 +26,7 @@ import type { Message, MessageThread } from "@/types/messages";
 import { buildMessageThreads } from "@/lib/message-threads";
 import {
   notifyAdminsOfNewFanSignup,
+  notifyAdminsOfNewMembershipApplication,
   notifyAdminsOfUnreadFanMessage,
   notifyFanOfMembershipUpgrade,
   notifyFanOfUnreadInboxMessage,
@@ -454,6 +455,38 @@ export async function createMembershipApplication(
     membership_applications: applications,
     users,
   });
+
+  const planName = getMembershipLabel(tier);
+  const amount = getMembershipPrice(tier);
+  const applicationMessage = `${user.display_name} applied for ${planName} ($${amount}).`;
+  const admins = users.filter((u) => u.role === "admin");
+  const notifications = readSheet<NotificationRow>("notifications");
+
+  for (const admin of admins) {
+    notifications.unshift({
+      id: randomUUID(),
+      user_id: admin.id,
+      title: "New membership application",
+      message: applicationMessage,
+      is_read: false,
+      created_at: timestamp,
+    });
+  }
+  writeSheet("notifications", notifications);
+
+  if (admins.length) {
+    try {
+      await notifyAdminsOfNewMembershipApplication({
+        adminEmails: admins.map((admin) => admin.email),
+        fanName: user.display_name,
+        fanEmail: user.email,
+        tier,
+        amount,
+      });
+    } catch {
+      // Application was saved — email alert is optional.
+    }
+  }
 }
 
 async function notifyMembershipDecision(
