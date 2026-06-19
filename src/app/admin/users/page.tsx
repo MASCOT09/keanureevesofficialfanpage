@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { updateUserMembershipAction, updateUserRoleAction } from "@/app/actions/admin-actions";
 import { AdminPageHeader, AdminSubmitButton } from "@/components/admin/AdminForm";
+import { FanCommunityStats } from "@/components/admin/FanCommunityStats";
 import { getSession } from "@/lib/session";
+import { buildFanCommunityStats } from "@/lib/fan-community-stats";
 import { countAdmins, getAdminUserList } from "@/lib/repository";
 import { formatDashboardDate } from "@/lib/dashboard-utils";
 import { getMembershipLabel } from "@/lib/membership";
@@ -41,6 +43,7 @@ export default async function AdminUsersPage() {
     countAdmins(),
     getSession(),
   ]);
+  const fanStats = buildFanCommunityStats(users);
 
   return (
     <div>
@@ -48,6 +51,8 @@ export default async function AdminUsersPage() {
         title="Team & Admins"
         description="Promote trusted fans to admin and assign membership badges when fans upgrade."
       />
+
+      <FanCommunityStats stats={fanStats} />
 
       <div className="mb-8 rounded-[16px] border border-accent/20 bg-accent/5 px-5 py-4 text-sm text-muted">
         <p className="mb-2 text-foreground">
