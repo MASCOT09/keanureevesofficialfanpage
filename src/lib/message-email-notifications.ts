@@ -33,6 +33,41 @@ export async function notifyFanOfUnreadInboxMessage(input: {
   }
 }
 
+export async function notifyAdminsOfNewFanSignup(input: {
+  adminEmails: string[];
+  fanName: string;
+  fanEmail: string;
+  country: string | null;
+}): Promise<void> {
+  if (!input.adminEmails.length) return;
+
+  const adminUrl = inboxUrl("/admin/users");
+
+  try {
+    await sendFanEmails(
+      input.adminEmails.map((to) => ({
+        to,
+        subject: "New fan signup on your site",
+        text: [
+          "A new fan just created an account.",
+          "",
+          `Name: ${input.fanName}`,
+          `Email: ${input.fanEmail}`,
+          input.country ? `Country: ${input.country}` : "Country: not provided",
+          "",
+          "Log in to the admin panel to review the new member.",
+          "",
+          `Open Team & Admins: ${adminUrl}`,
+          "",
+          "— Keanu Fan Site",
+        ].join("\n"),
+      }))
+    );
+  } catch {
+    // Signup succeeded — email alert is optional.
+  }
+}
+
 export async function notifyAdminsOfUnreadFanMessage(input: {
   adminEmails: string[];
   fanName: string;

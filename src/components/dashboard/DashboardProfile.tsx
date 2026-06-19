@@ -7,6 +7,7 @@ import { removeProfileAvatar, uploadProfileAvatar, updateProfile } from "@/app/a
 import { UserAvatar } from "@/components/dashboard/UserAvatar";
 import type { DashboardData } from "@/lib/dashboard-data";
 import { SubmitButton } from "@/components/ui/Button";
+import { CountryPicker } from "@/components/ui/CountryPicker";
 
 export function DashboardProfile({ data, hideTitle }: { data: DashboardData; hideTitle?: boolean }) {
   const router = useRouter();
@@ -180,32 +181,12 @@ export function DashboardProfile({ data, hideTitle }: { data: DashboardData; hid
             />
           </div>
 
-          <div>
-            <label htmlFor="country" className="mb-2 block text-sm tracking-wide text-muted">
-              Country
-            </label>
-            <input
-              id="country"
-              name="country"
-              type="text"
-              list="countries"
-              defaultValue={data.profile.country ?? ""}
-              placeholder="United States"
-              className="w-full rounded-[16px] border border-border bg-card/80 px-4 py-3.5 text-foreground outline-none transition-all duration-300 placeholder:text-muted/40 focus:border-accent/50 focus:shadow-[0_0_0_3px_rgba(212,175,55,0.1)]"
-            />
-            <datalist id="countries">
-              <option value="United States" />
-              <option value="United Kingdom" />
-              <option value="Canada" />
-              <option value="Nigeria" />
-              <option value="Australia" />
-              <option value="Germany" />
-              <option value="France" />
-              <option value="Japan" />
-              <option value="Brazil" />
-              <option value="India" />
-            </datalist>
-          </div>
+          <CountryPicker
+            id="country"
+            name="country"
+            defaultValue={data.profile.country ?? ""}
+            placeholder="Search or select your country"
+          />
 
           {error && (
             <p className="rounded-[16px] border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">

@@ -16,6 +16,7 @@ import type {
 import type { Message, MessageThread, Notification } from "@/types/messages";
 import { buildMessageThreads } from "@/lib/message-threads";
 import {
+  notifyAdminsOfNewFanSignup,
   notifyAdminsOfUnreadFanMessage,
   notifyFanOfUnreadInboxMessage,
 } from "@/lib/message-email-notifications";
@@ -293,6 +294,38 @@ export async function createUser(
     created_at: timestamp,
   });
   throwWriteError(notificationError);
+
+  try {
+    const { data: admins, error: adminQueryError } = await client
+      .from("app_users")
+      .select("id, email")
+      .eq("role", "admin");
+    if (!adminQueryError && admins?.length) {
+      const signupMessage = `${displayName} (${user.email}) just joined${
+        user.country ? ` from ${user.country}` : ""
+      }.`;
+      const { error: adminNotificationError } = await client.from("notifications").insert(
+        admins.map((admin) => ({
+          id: randomUUID(),
+          user_id: admin.id,
+          title: "New fan signup",
+          message: signupMessage,
+          is_read: false,
+          created_at: timestamp,
+        }))
+      );
+      if (!adminNotificationError) {
+        await notifyAdminsOfNewFanSignup({
+          adminEmails: admins.map((admin) => admin.email),
+          fanName: displayName,
+          fanEmail: user.email,
+          country: user.country ?? null,
+        });
+      }
+    }
+  } catch {
+    // Signup succeeded — admin alerts are optional.
+  }
 
   return user;
 }

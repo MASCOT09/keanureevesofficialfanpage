@@ -6,6 +6,7 @@ import { Suspense, useActionState } from "react";
 import { signupAction, type AuthActionState } from "@/app/actions/auth-actions";
 import { AuthLayout, AuthInput, AuthPasswordInput, AuthError } from "@/components/auth/AuthLayout";
 import { SubmitButton } from "@/components/ui/Button";
+import { CountryPicker } from "@/components/ui/CountryPicker";
 
 function SignupForm() {
   const searchParams = useSearchParams();
@@ -47,26 +48,7 @@ function SignupForm() {
           placeholder="you@example.com"
           required
         />
-        <AuthInput
-          label="Country"
-          id="country"
-          name="country"
-          type="text"
-          list="signup-countries"
-          placeholder="United States"
-        />
-        <datalist id="signup-countries">
-          <option value="United States" />
-          <option value="United Kingdom" />
-          <option value="Canada" />
-          <option value="Nigeria" />
-          <option value="Australia" />
-          <option value="Germany" />
-          <option value="France" />
-          <option value="Japan" />
-          <option value="Brazil" />
-          <option value="India" />
-        </datalist>
+        <CountryPicker id="country" name="country" placeholder="Search or select your country" />
         <AuthPasswordInput
           label="Password"
           id="password"

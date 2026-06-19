@@ -25,6 +25,7 @@ import type {
 import type { Message, MessageThread } from "@/types/messages";
 import { buildMessageThreads } from "@/lib/message-threads";
 import {
+  notifyAdminsOfNewFanSignup,
   notifyAdminsOfUnreadFanMessage,
   notifyFanOfUnreadInboxMessage,
 } from "@/lib/message-email-notifications";
@@ -157,11 +158,39 @@ export async function createUser(
     created_at: timestamp,
   });
 
+  const admins = users.filter((u) => u.role === "admin");
+  const signupMessage = `${displayName} (${user.email}) just joined${
+    user.country ? ` from ${user.country}` : ""
+  }.`;
+  for (const admin of admins) {
+    notifications.unshift({
+      id: randomUUID(),
+      user_id: admin.id,
+      title: "New fan signup",
+      message: signupMessage,
+      is_read: false,
+      created_at: timestamp,
+    });
+  }
+
   writeMultipleSheets({
     users,
     messages,
     notifications,
   });
+
+  if (admins.length) {
+    try {
+      await notifyAdminsOfNewFanSignup({
+        adminEmails: admins.map((admin) => admin.email),
+        fanName: displayName,
+        fanEmail: user.email,
+        country: user.country ?? null,
+      });
+    } catch {
+      // Signup succeeded — email alert is optional.
+    }
+  }
 
   return user;
 }
