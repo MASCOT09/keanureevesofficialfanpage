@@ -7,6 +7,12 @@ export interface FanEmailPayload {
   text: string;
 }
 
+export interface SendFanEmailResult {
+  delivered: boolean;
+  simulated: boolean;
+  error?: string;
+}
+
 function getFromAddress(): string {
   return process.env.EMAIL_FROM ?? "Keanu Fan <onboarding@resend.dev>";
 }
@@ -36,11 +42,17 @@ function writeToOutbox(payload: FanEmailPayload): boolean {
   }
 }
 
-export async function sendFanEmail(payload: FanEmailPayload): Promise<{
-  delivered: boolean;
-  simulated: boolean;
-}> {
+function logEmailFailure(to: string, subject: string, reason: string) {
+  console.error(`[email] Failed to send "${subject}" to ${to}: ${reason}`);
+}
+
+export async function sendFanEmail(payload: FanEmailPayload): Promise<SendFanEmailResult> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
+  const to = payload.to.trim().toLowerCase();
+
+  if (!to) {
+    return { delivered: false, simulated: true, error: "Missing recipient email." };
+  }
 
   if (apiKey) {
     try {
@@ -52,7 +64,7 @@ export async function sendFanEmail(payload: FanEmailPayload): Promise<{
         },
         body: JSON.stringify({
           from: getFromAddress(),
-          to: payload.to,
+          to: [to],
           subject: payload.subject,
           text: payload.text,
         }),
@@ -61,26 +73,49 @@ export async function sendFanEmail(payload: FanEmailPayload): Promise<{
       if (response.ok) {
         return { delivered: true, simulated: false };
       }
-    } catch {
-      // fall through to outbox / skip
+
+      let reason = `Resend HTTP ${response.status}`;
+      try {
+        const body = (await response.json()) as { message?: string; error?: string };
+        reason = body.message ?? body.error ?? reason;
+      } catch {
+        // ignore JSON parse errors
+      }
+
+      logEmailFailure(to, payload.subject, reason);
+      return { delivered: false, simulated: false, error: reason };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Network error";
+      logEmailFailure(to, payload.subject, reason);
+      return { delivered: false, simulated: false, error: reason };
     }
   }
 
-  writeToOutbox(payload);
-  return { delivered: false, simulated: true };
+  const saved = writeToOutbox({ ...payload, to });
+  if (!saved) {
+    logEmailFailure(to, payload.subject, "RESEND_API_KEY is not set and local outbox is unavailable.");
+  }
+
+  return {
+    delivered: false,
+    simulated: true,
+    error: apiKey ? undefined : "RESEND_API_KEY is not set.",
+  };
 }
 
 export async function sendFanEmails(
   payloads: FanEmailPayload[]
-): Promise<{ delivered: number; simulated: number }> {
+): Promise<{ delivered: number; simulated: number; failed: number }> {
   let delivered = 0;
   let simulated = 0;
+  let failed = 0;
 
   for (const payload of payloads) {
     const result = await sendFanEmail(payload);
     if (result.delivered) delivered += 1;
-    else simulated += 1;
+    else if (result.simulated) simulated += 1;
+    else failed += 1;
   }
 
-  return { delivered, simulated };
+  return { delivered, simulated, failed };
 }

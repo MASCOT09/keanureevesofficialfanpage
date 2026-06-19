@@ -30,6 +30,7 @@ import {
   notifyAdminsOfUnreadFanMessage,
   notifyFanOfMembershipUpgrade,
   notifyFanOfUnreadInboxMessage,
+  notifyFanOfWelcomeSignup,
 } from "@/lib/message-email-notifications";
 import { normalizeContactUrl } from "@/lib/contact-dms";
 import { SITE_BUTTON_DEFAULTS } from "@/lib/site-button-defaults";
@@ -193,6 +194,15 @@ export async function createUser(
     } catch {
       // Signup succeeded — email alert is optional.
     }
+  }
+
+  try {
+    await notifyFanOfWelcomeSignup({
+      fanEmail: user.email,
+      fanName: displayName,
+    });
+  } catch {
+    // Signup succeeded — email is optional.
   }
 
   return user;

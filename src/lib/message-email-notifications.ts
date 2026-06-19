@@ -7,6 +7,34 @@ function inboxUrl(path: string): string {
   return `${getSiteUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+export async function notifyFanOfWelcomeSignup(input: {
+  fanEmail: string;
+  fanName: string;
+}): Promise<void> {
+  const firstName = input.fanName.trim().split(/\s+/)[0] || "Fan";
+  try {
+    await sendFanEmails([
+      {
+        to: input.fanEmail,
+        subject: "Welcome to the fan community",
+        text: [
+          `Hi ${firstName},`,
+          "",
+          "Your account is ready on the official Keanu Reeves fan community.",
+          "",
+          "Log in to explore giveaways, meet & greets, membership plans, and your member inbox.",
+          "",
+          `Open your dashboard: ${inboxUrl("/dashboard")}`,
+          "",
+          "— Keanu Fan Team",
+        ].join("\n"),
+      },
+    ]);
+  } catch {
+    // Signup succeeded — email is optional.
+  }
+}
+
 export async function notifyFanOfUnreadInboxMessage(input: {
   fanEmail: string;
   fanName: string;

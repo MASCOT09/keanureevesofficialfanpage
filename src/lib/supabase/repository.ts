@@ -21,6 +21,7 @@ import {
   notifyAdminsOfUnreadFanMessage,
   notifyFanOfMembershipUpgrade,
   notifyFanOfUnreadInboxMessage,
+  notifyFanOfWelcomeSignup,
 } from "@/lib/message-email-notifications";
 import type { MembershipApplication, MembershipApplicationStatus } from "@/types/membership";
 import { normalizeContactUrl } from "@/lib/contact-dms";
@@ -303,12 +304,14 @@ export async function createUser(
       .from("app_users")
       .select("id, email")
       .eq("role", "admin");
-    if (!adminQueryError && admins?.length) {
+    const adminList = adminQueryError ? [] : admins ?? [];
+
+    if (adminList.length) {
       const signupMessage = `${displayName} (${user.email}) just joined${
         user.country ? ` from ${user.country}` : ""
       }.`;
-      const { error: adminNotificationError } = await client.from("notifications").insert(
-        admins.map((admin) => ({
+      await client.from("notifications").insert(
+        adminList.map((admin) => ({
           id: randomUUID(),
           user_id: admin.id,
           title: "New fan signup",
@@ -317,17 +320,21 @@ export async function createUser(
           created_at: timestamp,
         }))
       );
-      if (!adminNotificationError) {
-        await notifyAdminsOfNewFanSignup({
-          adminEmails: admins.map((admin) => admin.email),
-          fanName: displayName,
-          fanEmail: user.email,
-          country: user.country ?? null,
-        });
-      }
+
+      await notifyAdminsOfNewFanSignup({
+        adminEmails: adminList.map((admin) => admin.email),
+        fanName: displayName,
+        fanEmail: user.email,
+        country: user.country ?? null,
+      });
     }
+
+    await notifyFanOfWelcomeSignup({
+      fanEmail: user.email,
+      fanName: displayName,
+    });
   } catch {
-    // Signup succeeded — admin alerts are optional.
+    // Signup succeeded — email alerts are optional.
   }
 
   return user;
@@ -621,12 +628,15 @@ export async function createMembershipApplication(
       .from("app_users")
       .select("id, email")
       .eq("role", "admin");
-    if (!adminQueryError && admins?.length) {
+    const adminList = adminQueryError ? [] : admins ?? [];
+
+    if (adminList.length) {
       const planName = getMembershipLabel(tier);
       const amount = getMembershipPrice(tier);
       const applicationMessage = `${user.display_name} applied for ${planName} ($${amount}).`;
-      const { error: notificationError } = await client.from("notifications").insert(
-        admins.map((admin) => ({
+
+      await client.from("notifications").insert(
+        adminList.map((admin) => ({
           id: randomUUID(),
           user_id: admin.id,
           title: "New membership application",
@@ -635,15 +645,14 @@ export async function createMembershipApplication(
           created_at: timestamp,
         }))
       );
-      if (!notificationError) {
-        await notifyAdminsOfNewMembershipApplication({
-          adminEmails: admins.map((admin) => admin.email),
-          fanName: user.display_name,
-          fanEmail: user.email,
-          tier,
-          amount,
-        });
-      }
+
+      await notifyAdminsOfNewMembershipApplication({
+        adminEmails: adminList.map((admin) => admin.email),
+        fanName: user.display_name,
+        fanEmail: user.email,
+        tier,
+        amount,
+      });
     }
   } catch {
     // Application was saved — email alert is optional.
