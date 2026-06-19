@@ -29,6 +29,8 @@ import {
   sendAdminMessage,
   updateUserRole,
   updateUserMembership,
+  replyAsAdminToThread,
+  markThreadReadByAdmin,
 } from "@/lib/repository";
 import type { UserRole } from "@/types/database";
 import type { MembershipTier } from "@/types/membership";
@@ -92,6 +94,28 @@ export async function sendAdminMessageAction(formData: FormData) {
   revalidatePath("/dashboard/messages");
   revalidatePath("/dashboard/notifications");
   redirect("/admin/messages?sent=1");
+}
+
+export async function replyAsAdminThreadAction(threadId: string, formData: FormData) {
+  await requireAdmin();
+
+  const body = (formData.get("body") as string)?.trim();
+  const fromName = (formData.get("from_name") as string)?.trim() || "Keanu Fan Team";
+
+  await replyAsAdminToThread({ threadId, body, fromName });
+  await markThreadReadByAdmin(threadId);
+
+  revalidatePath("/admin/messages");
+  revalidatePath(`/admin/messages/${threadId}`);
+  revalidatePath("/dashboard/messages");
+  redirect(`/admin/messages/${threadId}?sent=1`);
+}
+
+export async function markAdminThreadReadAction(threadId: string) {
+  await requireAdmin();
+  await markThreadReadByAdmin(threadId);
+  revalidatePath("/admin/messages");
+  revalidatePath(`/admin/messages/${threadId}`);
 }
 
 export async function updateSiteSettingsAction(formData: FormData) {

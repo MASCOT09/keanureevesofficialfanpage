@@ -82,8 +82,16 @@ export function MembershipPlans({
 
       {currentStatus === "pending" && (
         <div className="rounded-[16px] border border-accent/20 bg-accent/10 px-5 py-4 text-sm text-accent">
-          Your membership application is under review
-          {latestApplication ? ` (${latestApplication.tier}, $${latestApplication.amount})` : ""}.
+          <p>
+            Your membership application is under review
+            {latestApplication ? ` (${latestApplication.tier}, $${latestApplication.amount})` : ""}.
+          </p>
+          <a
+            href="/dashboard/messages?new=membership"
+            className="mt-3 inline-block text-sm font-medium text-foreground underline decoration-accent/50 underline-offset-4 hover:text-accent"
+          >
+            Message the team about your application →
+          </a>
         </div>
       )}
 

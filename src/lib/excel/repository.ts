@@ -22,7 +22,8 @@ import type {
   SiteSettings,
   UserRole,
 } from "@/types/database";
-import type { Message } from "@/types/messages";
+import type { Message, MessageThread } from "@/types/messages";
+import { buildMessageThreads } from "@/lib/message-threads";
 import { normalizeContactUrl } from "@/lib/contact-dms";
 import { SITE_BUTTON_DEFAULTS } from "@/lib/site-button-defaults";
 import {
@@ -129,9 +130,12 @@ export async function createUser(
     "— Keanu Fan Team",
   ].join("\n");
 
+  const welcomeId = randomUUID();
   messages.unshift({
-    id: randomUUID(),
+    id: welcomeId,
     user_id: user.id,
+    thread_id: welcomeId,
+    sender_role: "admin",
     subject: "Welcome to the fan community",
     body: welcomeBody,
     from_name: "Keanu Fan Team",
@@ -382,9 +386,12 @@ async function notifyMembershipDecision(
   const notifications = (sheets.notifications ?? []) as NotificationRow[];
   const timestamp = now();
 
+  const messageId = randomUUID();
   messages.unshift({
-    id: randomUUID(),
+    id: messageId,
     user_id: userId,
+    thread_id: messageId,
+    sender_role: "admin",
     subject,
     body,
     from_name: "Keanu Fan Team",
@@ -980,6 +987,8 @@ export async function updateSiteButton(
 interface MessageRow {
   id: string;
   user_id: string;
+  thread_id?: string;
+  sender_role?: string;
   subject: string;
   body: string;
   from_name: string;
@@ -999,9 +1008,16 @@ function normalizeMessageStatus(row: MessageRow): Message["status"] {
 function mapMessage(row: MessageRow): Message {
   const status = normalizeMessageStatus(row);
   return {
-    ...row,
-    is_read: status !== "unread",
+    id: row.id,
+    user_id: row.user_id,
+    thread_id: row.thread_id ?? row.id,
+    sender_role: row.sender_role === "fan" ? "fan" : "admin",
+    subject: row.subject,
+    body: row.body,
+    from_name: row.from_name,
+    is_read: parseBool(row.is_read),
     status,
+    created_at: row.created_at,
   };
 }
 
@@ -1086,9 +1102,12 @@ export async function sendAdminMessage(input: {
   const notifyPreview = body.split("\n").find((line) => line.trim())?.trim() ?? subject;
 
   for (const user of targets) {
+    const messageId = randomUUID();
     messages.unshift({
-      id: randomUUID(),
+      id: messageId,
       user_id: user.id,
+      thread_id: messageId,
+      sender_role: "admin",
       subject,
       body,
       from_name: fromName,
@@ -1155,9 +1174,12 @@ export async function notifyAllFansAbout(input: {
       created_at: timestamp,
     });
 
+    const messageId = randomUUID();
     messages.unshift({
-      id: randomUUID(),
+      id: messageId,
       user_id: fan.id,
+      thread_id: messageId,
+      sender_role: "admin",
       subject: input.inboxSubject,
       body: `${input.inboxBody}\n\nView details: ${link}`,
       from_name: "Keanu Fan Team",
@@ -1202,9 +1224,12 @@ export function createWelcomeContentForUser(userId: string, displayName: string)
   ].join("\n");
 
   const messages = readSheet<MessageRow>("messages");
+  const welcomeId = randomUUID();
   messages.unshift({
-    id: randomUUID(),
+    id: welcomeId,
     user_id: userId,
+    thread_id: welcomeId,
+    sender_role: "admin",
     subject: "Welcome to the fan community",
     body: welcomeBody,
     from_name: "Keanu Fan Team",
@@ -1232,6 +1257,211 @@ export async function markMessageAsRead(messageId: string, userId: string) {
   if (index === -1) return;
   messages[index] = { ...messages[index], is_read: true, status: "read" };
   writeSheet("messages", messages);
+}
+
+export async function getMessageThreadsForUser(userId: string): Promise<MessageThread[]> {
+  const messages = await getMessagesForUser(userId);
+  const user = readSheet<UserRow>("users").find((u) => u.id === userId);
+  const lookup = new Map([
+    [
+      userId,
+      {
+        name: user?.display_name ?? "Fan",
+        email: user?.email ?? "",
+        membership_tier: normalizeMembershipTier(user?.membership_tier),
+      },
+    ],
+  ]);
+  return buildMessageThreads(messages, lookup);
+}
+
+export async function getMessageThreadsForAdmin(): Promise<MessageThread[]> {
+  const messages = readSheet<MessageRow>("messages").map(mapMessage);
+  const users = readSheet<UserRow>("users");
+  const lookup = new Map(
+    users.map((u) => [
+      u.id,
+      {
+        name: u.display_name,
+        email: u.email,
+        membership_tier: normalizeMembershipTier(u.membership_tier),
+      },
+    ])
+  );
+  return buildMessageThreads(messages, lookup);
+}
+
+export async function getThreadMessages(threadId: string, userId: string): Promise<Message[]> {
+  return readSheet<MessageRow>("messages")
+    .filter((m) => m.thread_id === threadId || m.id === threadId)
+    .filter((m) => m.user_id === userId)
+    .map(mapMessage)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+export async function getThreadMessagesForAdmin(threadId: string): Promise<Message[]> {
+  return readSheet<MessageRow>("messages")
+    .filter((m) => m.thread_id === threadId || m.id === threadId)
+    .map(mapMessage)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+export async function createFanMessageThread(input: {
+  userId: string;
+  displayName: string;
+  subject: string;
+  body: string;
+}): Promise<string> {
+  const subject = input.subject.trim();
+  const body = input.body.trim();
+  if (!subject || !body) throw new Error("Subject and message are required.");
+
+  const messages = readSheet<MessageRow>("messages");
+  const messageId = randomUUID();
+  messages.unshift({
+    id: messageId,
+    user_id: input.userId,
+    thread_id: messageId,
+    sender_role: "fan",
+    subject,
+    body,
+    from_name: input.displayName.trim() || "Fan",
+    is_read: false,
+    status: "read",
+    created_at: now(),
+  });
+  writeSheet("messages", messages);
+  return messageId;
+}
+
+export async function replyAsFan(input: {
+  userId: string;
+  displayName: string;
+  threadId: string;
+  body: string;
+}): Promise<void> {
+  const body = input.body.trim();
+  if (!body) throw new Error("Message is required.");
+
+  const messages = readSheet<MessageRow>("messages");
+  const thread = messages.filter(
+    (m) => (m.thread_id === input.threadId || m.id === input.threadId) && m.user_id === input.userId
+  );
+  if (!thread.length) throw new Error("Conversation not found.");
+
+  const subject = thread.sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )[0].subject;
+
+  messages.unshift({
+    id: randomUUID(),
+    user_id: input.userId,
+    thread_id: input.threadId,
+    sender_role: "fan",
+    subject,
+    body,
+    from_name: input.displayName.trim() || "Fan",
+    is_read: false,
+    status: "read",
+    created_at: now(),
+  });
+
+  for (let i = 0; i < messages.length; i++) {
+    const row = messages[i];
+    if (
+      (row.thread_id === input.threadId || row.id === input.threadId) &&
+      row.user_id === input.userId &&
+      row.sender_role !== "fan"
+    ) {
+      messages[i] = { ...row, status: "replied" };
+    }
+  }
+
+  writeSheet("messages", messages);
+}
+
+export async function replyAsAdminToThread(input: {
+  threadId: string;
+  body: string;
+  fromName: string;
+}): Promise<void> {
+  const body = input.body.trim();
+  const fromName = input.fromName.trim() || "Keanu Fan Team";
+  if (!body) throw new Error("Message is required.");
+
+  const messages = readSheet<MessageRow>("messages");
+  const thread = messages.filter((m) => m.thread_id === input.threadId || m.id === input.threadId);
+  if (!thread.length) throw new Error("Conversation not found.");
+
+  const first = thread.sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )[0];
+
+  messages.unshift({
+    id: randomUUID(),
+    user_id: first.user_id,
+    thread_id: input.threadId,
+    sender_role: "admin",
+    subject: first.subject,
+    body,
+    from_name: fromName,
+    is_read: false,
+    status: "unread",
+    created_at: now(),
+  });
+
+  for (let i = 0; i < messages.length; i++) {
+    const row = messages[i];
+    if (
+      (row.thread_id === input.threadId || row.id === input.threadId) &&
+      row.sender_role === "fan"
+    ) {
+      messages[i] = { ...row, is_read: true };
+    }
+  }
+
+  writeSheet("messages", messages);
+}
+
+export async function markThreadReadByFan(threadId: string, userId: string): Promise<void> {
+  const messages = readSheet<MessageRow>("messages");
+  let changed = false;
+  for (let i = 0; i < messages.length; i++) {
+    const row = messages[i];
+    if (
+      (row.thread_id === threadId || row.id === threadId) &&
+      row.user_id === userId &&
+      row.sender_role !== "fan" &&
+      !parseBool(row.is_read)
+    ) {
+      messages[i] = { ...row, is_read: true, status: "read" };
+      changed = true;
+    }
+  }
+  if (changed) writeSheet("messages", messages);
+}
+
+export async function markThreadReadByAdmin(threadId: string): Promise<void> {
+  const messages = readSheet<MessageRow>("messages");
+  let changed = false;
+  for (let i = 0; i < messages.length; i++) {
+    const row = messages[i];
+    if (
+      (row.thread_id === threadId || row.id === threadId) &&
+      row.sender_role === "fan" &&
+      !parseBool(row.is_read)
+    ) {
+      messages[i] = { ...row, is_read: true };
+      changed = true;
+    }
+  }
+  if (changed) writeSheet("messages", messages);
+}
+
+export async function countUnreadFanRepliesForAdmin(): Promise<number> {
+  return readSheet<MessageRow>("messages").filter(
+    (m) => m.sender_role === "fan" && !parseBool(m.is_read)
+  ).length;
 }
 
 export async function markNotificationAsRead(notificationId: string, userId: string) {

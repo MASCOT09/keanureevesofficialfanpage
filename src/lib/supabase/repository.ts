@@ -13,7 +13,8 @@ import type {
   SiteSettings,
   UserRole,
 } from "@/types/database";
-import type { Message, Notification } from "@/types/messages";
+import type { Message, MessageThread, Notification } from "@/types/messages";
+import { buildMessageThreads } from "@/lib/message-threads";
 import type { MembershipApplication, MembershipApplicationStatus } from "@/types/membership";
 import { normalizeContactUrl } from "@/lib/contact-dms";
 import {
@@ -51,6 +52,8 @@ interface MembershipApplicationRow {
 interface MessageRow {
   id: string;
   user_id: string;
+  thread_id?: string;
+  sender_role?: string;
   subject: string;
   body: string;
   from_name: string;
@@ -146,9 +149,16 @@ function normalizeMessageStatus(row: MessageRow): Message["status"] {
 function mapMessage(row: MessageRow): Message {
   const status = normalizeMessageStatus(row);
   return {
-    ...row,
-    is_read: status !== "unread",
+    id: row.id,
+    user_id: row.user_id,
+    thread_id: row.thread_id ?? row.id,
+    sender_role: row.sender_role === "fan" ? "fan" : "admin",
+    subject: row.subject,
+    body: row.body,
+    from_name: row.from_name,
+    is_read: parseBool(row.is_read),
     status,
+    created_at: row.created_at,
   };
 }
 
@@ -255,9 +265,12 @@ export async function createUser(
     "— Keanu Fan Team",
   ].join("\n");
 
+  const welcomeId = randomUUID();
   const { error: messageError } = await client.from("messages").insert({
-    id: randomUUID(),
+    id: welcomeId,
     user_id: user.id,
+    thread_id: welcomeId,
+    sender_role: "admin",
     subject: "Welcome to the fan community",
     body: welcomeBody,
     from_name: "Keanu Fan Team",
@@ -519,9 +532,12 @@ async function notifyMembershipDecision(
   const client = getSupabaseAdmin();
   const timestamp = now();
 
+  const messageId = randomUUID();
   const { error: messageError } = await client.from("messages").insert({
-    id: randomUUID(),
+    id: messageId,
     user_id: userId,
+    thread_id: messageId,
+    sender_role: "admin",
     subject,
     body,
     from_name: "Keanu Fan Team",
@@ -1268,16 +1284,21 @@ export async function sendAdminMessage(input: {
 
   const timestamp = now();
   const notifyPreview = body.split("\n").find((line) => line.trim())?.trim() ?? subject;
-  const messages: MessageRow[] = targets.map((user) => ({
-    id: randomUUID(),
-    user_id: user.id,
-    subject,
-    body,
-    from_name: fromName,
-    is_read: false,
-    status: "unread",
-    created_at: timestamp,
-  }));
+  const messages: MessageRow[] = targets.map((user) => {
+    const messageId = randomUUID();
+    return {
+      id: messageId,
+      user_id: user.id,
+      thread_id: messageId,
+      sender_role: "admin",
+      subject,
+      body,
+      from_name: fromName,
+      is_read: false,
+      status: "unread",
+      created_at: timestamp,
+    };
+  });
   const notifications: NotificationRow[] = input.alsoNotify
     ? targets.map((user) => ({
         id: randomUUID(),
@@ -1342,16 +1363,21 @@ export async function notifyAllFansAbout(input: {
     is_read: false,
     created_at: timestamp,
   }));
-  const messages: MessageRow[] = fans.map((fan) => ({
-    id: randomUUID(),
-    user_id: fan.id,
-    subject: input.inboxSubject,
-    body: `${input.inboxBody}\n\nView details: ${link}`,
-    from_name: "Keanu Fan Team",
-    is_read: false,
-    status: "unread",
-    created_at: timestamp,
-  }));
+  const messages: MessageRow[] = fans.map((fan) => {
+    const messageId = randomUUID();
+    return {
+      id: messageId,
+      user_id: fan.id,
+      thread_id: messageId,
+      sender_role: "admin",
+      subject: input.inboxSubject,
+      body: `${input.inboxBody}\n\nView details: ${link}`,
+      from_name: "Keanu Fan Team",
+      is_read: false,
+      status: "unread",
+      created_at: timestamp,
+    };
+  });
 
   const { error: messageError } = await client.from("messages").insert(messages);
   throwWriteError(messageError);
@@ -1391,9 +1417,12 @@ export function createWelcomeContentForUser(userId: string, displayName: string)
 
   const client = getSupabaseAdmin();
   void (async () => {
+    const welcomeId = randomUUID();
     const { error: messageError } = await client.from("messages").insert({
-      id: randomUUID(),
+      id: welcomeId,
       user_id: userId,
+      thread_id: welcomeId,
+      sender_role: "admin",
       subject: "Welcome to the fan community",
       body: welcomeBody,
       from_name: "Keanu Fan Team",
@@ -1423,6 +1452,253 @@ export async function markMessageAsRead(messageId: string, userId: string) {
     .eq("id", messageId)
     .eq("user_id", userId);
   throwWriteError(error);
+}
+
+export async function getMessageThreadsForUser(userId: string): Promise<MessageThread[]> {
+  const messages = await getMessagesForUser(userId);
+  const client = getSupabaseAdmin();
+  const { data: user, error } = await client
+    .from("app_users")
+    .select("id, display_name, email, membership_tier")
+    .eq("id", userId)
+    .maybeSingle<{ id: string; display_name: string; email: string; membership_tier: string | null }>();
+  throwReadError(error);
+  const lookup = new Map([
+    [
+      userId,
+      {
+        name: user?.display_name ?? "Fan",
+        email: user?.email ?? "",
+        membership_tier: normalizeMembershipTier(user?.membership_tier),
+      },
+    ],
+  ]);
+  return buildMessageThreads(messages, lookup);
+}
+
+export async function getMessageThreadsForAdmin(): Promise<MessageThread[]> {
+  const client = getSupabaseAdmin();
+  const [{ data: messages, error: messagesError }, { data: users, error: usersError }] =
+    await Promise.all([
+      client.from("messages").select("*"),
+      client.from("app_users").select("id, display_name, email, membership_tier, role"),
+    ]);
+  throwReadError(messagesError);
+  throwReadError(usersError);
+  const lookup = new Map(
+    ((users ?? []) as {
+      id: string;
+      display_name: string;
+      email: string;
+      membership_tier: string | null;
+      role: string;
+    }[])
+      .filter((u) => u.role === "fan")
+      .map((u) => [
+        u.id,
+        {
+          name: u.display_name,
+          email: u.email,
+          membership_tier: normalizeMembershipTier(u.membership_tier),
+        },
+      ])
+  );
+  return buildMessageThreads(((messages ?? []) as MessageRow[]).map(mapMessage), lookup);
+}
+
+export async function getThreadMessages(threadId: string, userId: string): Promise<Message[]> {
+  const client = getSupabaseAdmin();
+  const { data, error } = await client.from("messages").select("*").eq("user_id", userId);
+  throwReadError(error);
+  return ((data ?? []) as MessageRow[])
+    .filter((m) => m.thread_id === threadId || m.id === threadId)
+    .map(mapMessage)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+export async function getThreadMessagesForAdmin(threadId: string): Promise<Message[]> {
+  const client = getSupabaseAdmin();
+  const { data, error } = await client.from("messages").select("*");
+  throwReadError(error);
+  return ((data ?? []) as MessageRow[])
+    .filter((m) => m.thread_id === threadId || m.id === threadId)
+    .map(mapMessage)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+export async function createFanMessageThread(input: {
+  userId: string;
+  displayName: string;
+  subject: string;
+  body: string;
+}): Promise<string> {
+  const subject = input.subject.trim();
+  const body = input.body.trim();
+  if (!subject || !body) throw new Error("Subject and message are required.");
+
+  const client = getSupabaseAdmin();
+  const messageId = randomUUID();
+  const { error } = await client.from("messages").insert({
+    id: messageId,
+    user_id: input.userId,
+    thread_id: messageId,
+    sender_role: "fan",
+    subject,
+    body,
+    from_name: input.displayName.trim() || "Fan",
+    is_read: false,
+    status: "read",
+    created_at: now(),
+  });
+  throwWriteError(error);
+  return messageId;
+}
+
+export async function replyAsFan(input: {
+  userId: string;
+  displayName: string;
+  threadId: string;
+  body: string;
+}): Promise<void> {
+  const body = input.body.trim();
+  if (!body) throw new Error("Message is required.");
+
+  const client = getSupabaseAdmin();
+  const { data: rows, error: readError } = await client
+    .from("messages")
+    .select("*")
+    .eq("user_id", input.userId);
+  throwReadError(readError);
+
+  const thread = ((rows ?? []) as MessageRow[]).filter(
+    (m) => m.thread_id === input.threadId || m.id === input.threadId
+  );
+  if (!thread.length) throw new Error("Conversation not found.");
+
+  const subject = thread.sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )[0].subject;
+
+  const { error: insertError } = await client.from("messages").insert({
+    id: randomUUID(),
+    user_id: input.userId,
+    thread_id: input.threadId,
+    sender_role: "fan",
+    subject,
+    body,
+    from_name: input.displayName.trim() || "Fan",
+    is_read: false,
+    status: "read",
+    created_at: now(),
+  });
+  throwWriteError(insertError);
+
+  const adminMessageIds = thread
+    .filter((m) => m.sender_role !== "fan")
+    .map((m) => m.id);
+  if (adminMessageIds.length) {
+    const { error: updateError } = await client
+      .from("messages")
+      .update({ status: "replied" })
+      .in("id", adminMessageIds);
+    throwWriteError(updateError);
+  }
+}
+
+export async function replyAsAdminToThread(input: {
+  threadId: string;
+  body: string;
+  fromName: string;
+}): Promise<void> {
+  const body = input.body.trim();
+  const fromName = input.fromName.trim() || "Keanu Fan Team";
+  if (!body) throw new Error("Message is required.");
+
+  const client = getSupabaseAdmin();
+  const { data: rows, error: readError } = await client.from("messages").select("*");
+  throwReadError(readError);
+
+  const thread = ((rows ?? []) as MessageRow[]).filter(
+    (m) => m.thread_id === input.threadId || m.id === input.threadId
+  );
+  if (!thread.length) throw new Error("Conversation not found.");
+
+  const first = thread.sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )[0];
+
+  const { error: insertError } = await client.from("messages").insert({
+    id: randomUUID(),
+    user_id: first.user_id,
+    thread_id: input.threadId,
+    sender_role: "admin",
+    subject: first.subject,
+    body,
+    from_name: fromName,
+    is_read: false,
+    status: "unread",
+    created_at: now(),
+  });
+  throwWriteError(insertError);
+
+  const fanMessageIds = thread.filter((m) => m.sender_role === "fan").map((m) => m.id);
+  if (fanMessageIds.length) {
+    const { error: updateError } = await client
+      .from("messages")
+      .update({ is_read: true })
+      .in("id", fanMessageIds);
+    throwWriteError(updateError);
+  }
+}
+
+export async function markThreadReadByFan(threadId: string, userId: string): Promise<void> {
+  const client = getSupabaseAdmin();
+  const { data, error: readError } = await client
+    .from("messages")
+    .select("id, thread_id, sender_role, is_read")
+    .eq("user_id", userId);
+  throwReadError(readError);
+
+  const ids = ((data ?? []) as MessageRow[])
+    .filter(
+      (m) =>
+        (m.thread_id === threadId || m.id === threadId) &&
+        m.sender_role !== "fan" &&
+        !parseBool(m.is_read)
+    )
+    .map((m) => m.id);
+
+  if (!ids.length) return;
+  const { error } = await client
+    .from("messages")
+    .update({ is_read: true, status: "read" })
+    .in("id", ids);
+  throwWriteError(error);
+}
+
+export async function markThreadReadByAdmin(threadId: string): Promise<void> {
+  const client = getSupabaseAdmin();
+  const { data, error: readError } = await client.from("messages").select("id, thread_id, sender_role, is_read");
+  throwReadError(readError);
+
+  const ids = ((data ?? []) as MessageRow[])
+    .filter((m) => (m.thread_id === threadId || m.id === threadId) && m.sender_role === "fan" && !parseBool(m.is_read))
+    .map((m) => m.id);
+
+  if (!ids.length) return;
+  const { error } = await client.from("messages").update({ is_read: true }).in("id", ids);
+  throwWriteError(error);
+}
+
+export async function countUnreadFanRepliesForAdmin(): Promise<number> {
+  const client = getSupabaseAdmin();
+  const { count, error } = await client
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("sender_role", "fan")
+    .eq("is_read", false);
+  throwReadError(error);
+  return count ?? 0;
 }
 
 export async function markNotificationAsRead(notificationId: string, userId: string) {
