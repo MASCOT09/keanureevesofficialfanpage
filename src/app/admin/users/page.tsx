@@ -37,7 +37,12 @@ function badgeLabel(tier: MembershipTier, isAdmin: boolean): string {
   return getMembershipLabel(tier);
 }
 
-export default async function AdminUsersPage() {
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; updated?: string }>;
+}) {
+  const params = await searchParams;
   const [users, adminCount, session] = await Promise.all([
     getAdminUserList(),
     countAdmins(),
@@ -52,6 +57,24 @@ export default async function AdminUsersPage() {
         description="Promote trusted fans to admin and assign membership badges when fans upgrade."
       />
 
+      {params.error && (
+        <div className="mb-6 rounded-[16px] border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-400">
+          {params.error}
+        </div>
+      )}
+
+      {params.updated === "role" && (
+        <div className="mb-6 rounded-[16px] border border-emerald-500/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-400">
+          Role updated successfully.
+        </div>
+      )}
+
+      {params.updated === "membership" && (
+        <div className="mb-6 rounded-[16px] border border-emerald-500/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-400">
+          Membership badge updated successfully.
+        </div>
+      )}
+
       <FanCommunityStats stats={fanStats} />
 
       <div className="mb-8 rounded-[16px] border border-accent/20 bg-accent/5 px-5 py-4 text-sm text-muted">
@@ -64,6 +87,12 @@ export default async function AdminUsersPage() {
           <span className="font-medium text-accent">Membership badges:</span> When a fan upgrades
           offline, use the badge dropdown to set Silver, Gold, or Platinum. Their dashboard and
           perks update immediately after they refresh.
+        </p>
+        <p className="mb-2">
+          <span className="font-medium text-accent">Demoting admins:</span> You cannot remove your
+          own admin access — ask another admin to change your role. You must keep at least one admin
+          on the site. When an admin becomes a fan, their badge resets to no membership until you
+          assign one.
         </p>
         <p>
           Promoted users must <span className="text-foreground">log out and log back in</span> before

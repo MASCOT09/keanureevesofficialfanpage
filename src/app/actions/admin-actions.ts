@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { isAdmin } from "@/lib/auth";
 import { parseGiveawayImageUpload } from "@/lib/giveaway-image";
 import { getSession } from "@/lib/session";
@@ -42,35 +43,49 @@ async function requireAdmin() {
 }
 
 export async function updateUserRoleAction(targetUserId: string, formData: FormData) {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const session = await getSession();
-  if (!session) throw new Error("Unauthorized");
+    const session = await getSession();
+    if (!session) throw new Error("Unauthorized");
 
-  const role = formData.get("role") as UserRole;
-  if (role !== "fan" && role !== "admin") {
-    throw new Error("Invalid role.");
+    const role = formData.get("role") as UserRole;
+    if (role !== "fan" && role !== "admin") {
+      throw new Error("Invalid role.");
+    }
+
+    await updateUserRole(session.sub, targetUserId, role);
+    revalidatePath("/admin/users");
+    revalidatePath("/dashboard", "layout");
+    redirect("/admin/users?updated=role");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    const message = error instanceof Error ? error.message : "Could not update role.";
+    redirect(`/admin/users?error=${encodeURIComponent(message)}`);
   }
-
-  await updateUserRole(session.sub, targetUserId, role);
-  revalidatePath("/admin/users");
-  revalidatePath("/dashboard", "layout");
 }
 
 export async function updateUserMembershipAction(targetUserId: string, formData: FormData) {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const tier = formData.get("membership_tier") as MembershipTier;
-  if (tier !== "none" && tier !== "silver" && tier !== "gold" && tier !== "platinum") {
-    throw new Error("Invalid membership tier.");
+    const tier = formData.get("membership_tier") as MembershipTier;
+    if (tier !== "none" && tier !== "silver" && tier !== "gold" && tier !== "platinum") {
+      throw new Error("Invalid membership tier.");
+    }
+
+    await updateUserMembership(targetUserId, tier);
+    revalidatePath("/admin/users");
+    revalidatePath("/dashboard", "layout");
+    revalidatePath("/dashboard/messages");
+    revalidatePath("/dashboard/notifications");
+    revalidatePath("/dashboard/membership");
+    redirect("/admin/users?updated=membership");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    const message = error instanceof Error ? error.message : "Could not update membership.";
+    redirect(`/admin/users?error=${encodeURIComponent(message)}`);
   }
-
-  await updateUserMembership(targetUserId, tier);
-  revalidatePath("/admin/users");
-  revalidatePath("/dashboard", "layout");
-  revalidatePath("/dashboard/messages");
-  revalidatePath("/dashboard/notifications");
-  revalidatePath("/dashboard/membership");
 }
 
 export async function sendAdminMessageAction(formData: FormData) {

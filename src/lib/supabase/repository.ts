@@ -454,7 +454,9 @@ export async function updateUserRole(
   const updatePayload =
     role === "admin"
       ? { role, membership_tier: "platinum", membership_status: "active" }
-      : { role };
+      : target.role === "admin"
+        ? { role, membership_tier: "none", membership_status: "none" }
+        : { role };
 
   const { error: updateError } = await client
     .from("app_users")

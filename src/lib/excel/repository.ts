@@ -300,6 +300,9 @@ export async function updateUserRole(
   if (role === "admin") {
     users[targetIndex].membership_tier = "platinum";
     users[targetIndex].membership_status = "active";
+  } else if (target.role === "admin") {
+    users[targetIndex].membership_tier = "none";
+    users[targetIndex].membership_status = "none";
   }
   writeSheet("users", users);
 }
