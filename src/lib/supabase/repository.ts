@@ -1296,15 +1296,19 @@ export async function sendAdminMessage(input: {
     throwWriteError(notificationError);
   }
 
-  const { sendFanEmails } = await import("@/lib/email");
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  await sendFanEmails(
-    targets.map((user) => ({
-      to: user.email,
-      subject,
-      text: `${body}\n\nOpen your dashboard: ${siteUrl}/dashboard/messages`,
-    }))
-  );
+  try {
+    const { sendFanEmails } = await import("@/lib/email");
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    await sendFanEmails(
+      targets.map((user) => ({
+        to: user.email,
+        subject,
+        text: `${body}\n\nOpen your dashboard: ${siteUrl}/dashboard/messages`,
+      }))
+    );
+  } catch {
+    // Inbox message was saved — email delivery is optional.
+  }
 
   return { sent: targets.length };
 }
@@ -1354,14 +1358,18 @@ export async function notifyAllFansAbout(input: {
   const { error: notificationError } = await client.from("notifications").insert(notifications);
   throwWriteError(notificationError);
 
-  const { sendFanEmails } = await import("@/lib/email");
-  await sendFanEmails(
-    fans.map((fan) => ({
-      to: fan.email,
-      subject: input.inboxSubject,
-      text: `${input.inboxBody}\n\nView details: ${link}`,
-    }))
-  );
+  try {
+    const { sendFanEmails } = await import("@/lib/email");
+    await sendFanEmails(
+      fans.map((fan) => ({
+        to: fan.email,
+        subject: input.inboxSubject,
+        text: `${input.inboxBody}\n\nView details: ${link}`,
+      }))
+    );
+  } catch {
+    // Inbox + notifications were saved — email delivery is optional.
+  }
 
   return { notified: fans.length };
 }

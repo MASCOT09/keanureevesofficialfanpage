@@ -11,30 +11,36 @@ function getFromAddress(): string {
   return process.env.EMAIL_FROM ?? "Keanu Fan <onboarding@resend.dev>";
 }
 
-function writeToOutbox(payload: FanEmailPayload): void {
-  const outboxDir = path.join(process.cwd(), "data", "email-outbox");
-  if (!fs.existsSync(outboxDir)) {
-    fs.mkdirSync(outboxDir, { recursive: true });
+function writeToOutbox(payload: FanEmailPayload): boolean {
+  try {
+    const outboxDir = path.join(process.cwd(), "data", "email-outbox");
+    if (!fs.existsSync(outboxDir)) {
+      fs.mkdirSync(outboxDir, { recursive: true });
+    }
+
+    const safeTo = payload.to.replace(/[^a-z0-9@._-]/gi, "_");
+    const filename = `${Date.now()}-${safeTo}.txt`;
+    const content = [
+      `To: ${payload.to}`,
+      `Subject: ${payload.subject}`,
+      `Date: ${new Date().toISOString()}`,
+      "",
+      payload.text,
+    ].join("\n");
+
+    fs.writeFileSync(path.join(outboxDir, filename), content, "utf8");
+    return true;
+  } catch {
+    // Vercel/serverless filesystem is read-only — outbox is local-dev only.
+    return false;
   }
-
-  const safeTo = payload.to.replace(/[^a-z0-9@._-]/gi, "_");
-  const filename = `${Date.now()}-${safeTo}.txt`;
-  const content = [
-    `To: ${payload.to}`,
-    `Subject: ${payload.subject}`,
-    `Date: ${new Date().toISOString()}`,
-    "",
-    payload.text,
-  ].join("\n");
-
-  fs.writeFileSync(path.join(outboxDir, filename), content, "utf8");
 }
 
 export async function sendFanEmail(payload: FanEmailPayload): Promise<{
   delivered: boolean;
   simulated: boolean;
 }> {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = process.env.RESEND_API_KEY?.trim();
 
   if (apiKey) {
     try {
@@ -56,7 +62,7 @@ export async function sendFanEmail(payload: FanEmailPayload): Promise<{
         return { delivered: true, simulated: false };
       }
     } catch {
-      // fall through to outbox
+      // fall through to outbox / skip
     }
   }
 

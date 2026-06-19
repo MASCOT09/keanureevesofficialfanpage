@@ -8,8 +8,12 @@ import {
   AdminCard,
 } from "@/components/admin/AdminForm";
 
-export default async function AdminMessagesPage() {
-  const fans = await getFansForMessaging();
+export default async function AdminMessagesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sent?: string }>;
+}) {
+  const [{ sent }, fans] = await Promise.all([searchParams, getFansForMessaging()]);
 
   return (
     <div>
@@ -17,6 +21,13 @@ export default async function AdminMessagesPage() {
         title="Fan Messages"
         description="Send inbox messages to one fan or everyone. Fans see these under Dashboard → My Messages."
       />
+
+      {sent === "1" && (
+        <div className="mb-8 rounded-[16px] border border-accent/30 bg-accent/10 px-5 py-4 text-sm text-foreground">
+          Message sent successfully. The fan will see it in{" "}
+          <span className="font-medium text-accent">Dashboard → My Messages</span>.
+        </div>
+      )}
 
       <AdminCard className="mb-8">
         <h2 className="font-display mb-2 text-xl text-foreground">Compose message</h2>

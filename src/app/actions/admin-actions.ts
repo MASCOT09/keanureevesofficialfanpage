@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { isAdmin } from "@/lib/auth";
@@ -90,6 +91,7 @@ export async function sendAdminMessageAction(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/messages");
   revalidatePath("/dashboard/notifications");
+  redirect("/admin/messages?sent=1");
 }
 
 export async function updateSiteSettingsAction(formData: FormData) {
