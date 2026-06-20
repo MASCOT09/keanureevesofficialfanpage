@@ -27,6 +27,7 @@ export interface MessageThread {
   unread_for_admin: number;
   unread_for_fan: number;
   message_count: number;
+  fan_last_seen_at: string | null;
 }
 
 export interface Notification {

@@ -8,6 +8,7 @@ import {
   markThreadReadByAdmin,
 } from "@/lib/repository";
 import { AdminPageHeader } from "@/components/admin/AdminForm";
+import { FanLastSeenBadge } from "@/components/admin/FanLastSeenBadge";
 import { MessageThreadChat } from "@/components/messages/MessageThreadChat";
 import { getMembershipLabel } from "@/lib/membership";
 
@@ -49,9 +50,15 @@ export default async function AdminThreadPage({
       <AdminPageHeader
         title={subject}
         description={
-          thread
-            ? `${thread.fan_name} · ${thread.fan_email} · ${getMembershipLabel(thread.membership_tier as "none")}`
-            : undefined
+          thread ? (
+            <span className="flex flex-col gap-1">
+              <span>
+                {thread.fan_name} · {thread.fan_email} ·{" "}
+                {getMembershipLabel(thread.membership_tier as "none")}
+              </span>
+              <FanLastSeenBadge lastSeenAt={thread.fan_last_seen_at} />
+            </span>
+          ) : undefined
         }
       />
 

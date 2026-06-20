@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { updateUserMembershipAction, updateUserRoleAction } from "@/app/actions/admin-actions";
+import { deleteUserAction, updateUserMembershipAction, updateUserRoleAction } from "@/app/actions/admin-actions";
 import { AdminPageHeader, AdminSubmitButton } from "@/components/admin/AdminForm";
+import { DeleteAccountButton } from "@/components/admin/DeleteAccountButton";
 import { FanCommunityStats } from "@/components/admin/FanCommunityStats";
 import { getSession } from "@/lib/session";
 import { buildFanCommunityStats } from "@/lib/fan-community-stats";
@@ -75,6 +76,12 @@ export default async function AdminUsersPage({
         </div>
       )}
 
+      {params.updated === "deleted" && (
+        <div className="mb-6 rounded-[16px] border border-emerald-500/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-400">
+          Account deleted successfully. Fan totals have been updated.
+        </div>
+      )}
+
       <FanCommunityStats stats={fanStats} />
 
       <div className="mb-8 rounded-[16px] border border-accent/20 bg-accent/5 px-5 py-4 text-sm text-muted">
@@ -87,6 +94,12 @@ export default async function AdminUsersPage({
           <span className="font-medium text-accent">Membership badges:</span> When a fan upgrades
           offline, use the badge dropdown to set Silver, Gold, or Platinum. Their dashboard and
           perks update immediately after they refresh.
+        </p>
+        <p className="mb-2">
+          <span className="font-medium text-accent">Removing test accounts:</span> Use{" "}
+          <span className="text-foreground">Delete account</span> on fan rows to permanently remove
+          test signups. Their messages and notifications are removed too, and fan totals update
+          immediately.
         </p>
         <p className="mb-2">
           <span className="font-medium text-accent">Demoting admins:</span> You cannot remove your
@@ -122,6 +135,7 @@ export default async function AdminUsersPage({
                 const tier = effectiveTier(user);
                 const updateRole = updateUserRoleAction.bind(null, user.id);
                 const updateMembership = updateUserMembershipAction.bind(null, user.id);
+                const removeAccount = deleteUserAction.bind(null, user.id);
 
                 return (
                   <tr key={user.id} className="bg-card/20">
@@ -187,6 +201,13 @@ export default async function AdminUsersPage({
                             </select>
                             <AdminSubmitButton label="Update" />
                           </form>
+                        )}
+
+                        {!isSelf && (
+                          <DeleteAccountButton
+                            deleteAction={removeAccount}
+                            userName={user.display_name}
+                          />
                         )}
                       </div>
                     </td>

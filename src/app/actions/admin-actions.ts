@@ -30,6 +30,7 @@ import {
   sendAdminMessage,
   updateUserRole,
   updateUserMembership,
+  deleteUser,
   replyAsAdminToThread,
   markThreadReadByAdmin,
 } from "@/lib/repository";
@@ -84,6 +85,25 @@ export async function updateUserMembershipAction(targetUserId: string, formData:
   } catch (error) {
     if (isRedirectError(error)) throw error;
     const message = error instanceof Error ? error.message : "Could not update membership.";
+    redirect(`/admin/users?error=${encodeURIComponent(message)}`);
+  }
+}
+
+export async function deleteUserAction(targetUserId: string) {
+  try {
+    await requireAdmin();
+
+    const session = await getSession();
+    if (!session) throw new Error("Unauthorized");
+
+    await deleteUser(session.sub, targetUserId);
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/messages");
+    revalidatePath("/dashboard", "layout");
+    redirect("/admin/users?updated=deleted");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    const message = error instanceof Error ? error.message : "Could not delete account.";
     redirect(`/admin/users?error=${encodeURIComponent(message)}`);
   }
 }

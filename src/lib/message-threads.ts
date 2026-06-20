@@ -2,7 +2,10 @@ import type { Message, MessageThread } from "@/types/messages";
 
 export function buildMessageThreads(
   messages: Message[],
-  fanLookup: Map<string, { name: string; email: string; membership_tier: string }>
+  fanLookup: Map<
+    string,
+    { name: string; email: string; membership_tier: string; last_seen_at?: string | null }
+  >
 ): MessageThread[] {
   const byThread = new Map<string, Message[]>();
 
@@ -24,6 +27,7 @@ export function buildMessageThreads(
       name: "Fan",
       email: "",
       membership_tier: "none",
+      last_seen_at: null,
     };
 
     threads.push({
@@ -33,6 +37,7 @@ export function buildMessageThreads(
       fan_name: fan.name,
       fan_email: fan.email,
       membership_tier: fan.membership_tier,
+      fan_last_seen_at: fan.last_seen_at ?? null,
       last_message_at: last.created_at,
       last_message_preview: last.body.replace(/\s+/g, " ").trim().slice(0, 120),
       last_sender_role: last.sender_role,

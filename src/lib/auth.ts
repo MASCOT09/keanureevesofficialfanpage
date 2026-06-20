@@ -4,6 +4,7 @@ import {
   findUserById,
   getProfileById,
   isExcelBackendReady,
+  touchUserLastSeen,
 } from "@/lib/repository";
 import { normalizeMembershipStatus, normalizeMembershipTier } from "@/lib/membership";
 import type { MembershipInfo } from "@/types/membership";
@@ -22,6 +23,8 @@ async function loadCurrentUser(): Promise<SessionUser | null> {
 
   const user = await findUserById(session.sub);
   if (!user) return null;
+
+  void touchUserLastSeen(user.id);
 
   return { id: user.id, email: user.email, role: user.role };
 }

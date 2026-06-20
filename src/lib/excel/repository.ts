@@ -49,6 +49,7 @@ interface UserRow {
   avatar_url?: string | null;
   membership_tier?: string | null;
   membership_status?: string | null;
+  last_seen_at?: string | null;
   created_at: string;
 }
 
@@ -226,22 +227,36 @@ export interface AdminUserSummary {
   role: UserRole;
   country: string | null;
   created_at: string;
+  last_seen_at: string | null;
   membership_tier: import("@/types/membership").MembershipTier;
   membership_status: import("@/types/membership").MembershipStatus;
 }
 
 export async function getAdminUserList(): Promise<AdminUserSummary[]> {
   return readSheet<UserRow>("users")
-    .map(({ id, email, display_name, role, country, created_at, membership_tier, membership_status }) => ({
-      id,
-      email,
-      display_name,
-      role,
-      country: country ?? null,
-      created_at,
-      membership_tier: normalizeMembershipTier(membership_tier),
-      membership_status: normalizeMembershipStatus(membership_status),
-    }))
+    .map(
+      ({
+        id,
+        email,
+        display_name,
+        role,
+        country,
+        created_at,
+        last_seen_at,
+        membership_tier,
+        membership_status,
+      }) => ({
+        id,
+        email,
+        display_name,
+        role,
+        country: country ?? null,
+        created_at,
+        last_seen_at: last_seen_at ?? null,
+        membership_tier: normalizeMembershipTier(membership_tier),
+        membership_status: normalizeMembershipStatus(membership_status),
+      })
+    )
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
@@ -291,6 +306,76 @@ export async function updateUserRole(
     users[targetIndex].membership_status = "none";
   }
   writeSheet("users", users);
+}
+
+export async function touchUserLastSeen(userId: string): Promise<void> {
+  const users = readSheet<UserRow>("users");
+  const index = users.findIndex((user) => user.id === userId);
+  if (index === -1) return;
+
+  const lastSeen = users[index].last_seen_at;
+  if (lastSeen) {
+    const elapsed = Date.now() - new Date(lastSeen).getTime();
+    if (elapsed < 2 * 60 * 1000) return;
+  }
+
+  users[index] = { ...users[index], last_seen_at: now() };
+  writeSheet("users", users);
+}
+
+export async function deleteUser(actorId: string, targetUserId: string): Promise<void> {
+  if (targetUserId === actorId) {
+    throw new Error("You cannot delete your own account.");
+  }
+
+  const users = readSheet<UserRow>("users");
+  const targetIndex = users.findIndex((user) => user.id === targetUserId);
+  if (targetIndex === -1) throw new Error("User not found.");
+
+  const target = users[targetIndex];
+  if (target.role === "admin") {
+    const adminCount = users.filter((user) => user.role === "admin").length;
+    if (adminCount <= 1) {
+      throw new Error("Cannot delete the last admin.");
+    }
+  }
+
+  const userId = targetUserId;
+  writeSheet(
+    "users",
+    users.filter((user) => user.id !== userId)
+  );
+  writeSheet(
+    "messages",
+    readSheet<MessageRow>("messages").filter((row) => row.user_id !== userId)
+  );
+  writeSheet(
+    "notifications",
+    readSheet<NotificationRow>("notifications").filter((row) => row.user_id !== userId)
+  );
+  writeSheet(
+    "giveaway_entries",
+    readSheet<{ user_id: string }>("giveaway_entries").filter((row) => row.user_id !== userId)
+  );
+  writeSheet(
+    "meet_greet_registrations",
+    readSheet<{ user_id: string }>("meet_greet_registrations").filter((row) => row.user_id !== userId)
+  );
+  writeSheet(
+    "membership_applications",
+    readSheet<{ user_id: string }>("membership_applications").filter((row) => row.user_id !== userId)
+  );
+  writeSheet(
+    "push_subscriptions",
+    readSheet<{ user_id: string }>("push_subscriptions").filter((row) => row.user_id !== userId)
+  );
+
+  try {
+    const { removeUserAvatarFiles } = await import("@/lib/avatar");
+    removeUserAvatarFiles(userId);
+  } catch {
+    // Avatar cleanup is optional.
+  }
 }
 
 export async function updateUserMembership(
@@ -1415,6 +1500,7 @@ export async function getMessageThreadsForAdmin(): Promise<MessageThread[]> {
         name: u.display_name,
         email: u.email,
         membership_tier: normalizeMembershipTier(u.membership_tier),
+        last_seen_at: u.last_seen_at ?? null,
       },
     ])
   );

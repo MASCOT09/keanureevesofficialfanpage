@@ -9,6 +9,7 @@ import {
   AdminPageHeader,
   AdminCard,
 } from "@/components/admin/AdminForm";
+import { FanLastSeenBadge } from "@/components/admin/FanLastSeenBadge";
 import { formatDashboardDateTime } from "@/lib/dashboard-utils";
 import { getMembershipLabel } from "@/lib/membership";
 
@@ -74,6 +75,9 @@ export default async function AdminMessagesPage({
                   <div>
                     <p className="font-medium text-foreground">{thread.fan_name}</p>
                     <p className="text-xs text-muted">{thread.fan_email}</p>
+                    <div className="mt-1">
+                      <FanLastSeenBadge lastSeenAt={thread.fan_last_seen_at} />
+                    </div>
                   </div>
                   <div className="text-right text-xs text-muted">
                     <p>{formatDashboardDateTime(thread.last_message_at)}</p>

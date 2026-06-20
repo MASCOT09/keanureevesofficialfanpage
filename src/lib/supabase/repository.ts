@@ -40,6 +40,7 @@ interface UserRow {
   avatar_url?: string | null;
   membership_tier?: string | null;
   membership_status?: string | null;
+  last_seen_at?: string | null;
   created_at: string;
 }
 
@@ -378,6 +379,7 @@ export interface AdminUserSummary {
   role: UserRole;
   country: string | null;
   created_at: string;
+  last_seen_at: string | null;
   membership_tier: import("@/types/membership").MembershipTier;
   membership_status: import("@/types/membership").MembershipStatus;
 }
@@ -386,14 +388,18 @@ export async function getAdminUserList(): Promise<AdminUserSummary[]> {
   const client = getSupabaseAdmin();
   const { data, error } = await client
     .from("app_users")
-    .select("id, email, display_name, role, country, created_at, membership_tier, membership_status");
+    .select(
+      "id, email, display_name, role, country, created_at, last_seen_at, membership_tier, membership_status"
+    );
   throwReadError(error);
   return ((data ?? []) as (AdminUserSummary & {
     membership_tier?: string | null;
     membership_status?: string | null;
+    last_seen_at?: string | null;
   })[])
     .map((row) => ({
       ...row,
+      last_seen_at: row.last_seen_at ?? null,
       membership_tier: normalizeMembershipTier(row.membership_tier),
       membership_status: normalizeMembershipStatus(row.membership_status),
     }))
@@ -460,6 +466,62 @@ export async function updateUserRole(
     .update(updatePayload)
     .eq("id", targetUserId);
   throwWriteError(updateError);
+}
+
+export async function touchUserLastSeen(userId: string): Promise<void> {
+  try {
+    const client = getSupabaseAdmin();
+    const { data, error } = await client
+      .from("app_users")
+      .select("last_seen_at")
+      .eq("id", userId)
+      .maybeSingle<{ last_seen_at: string | null }>();
+    if (error) return;
+
+    if (data?.last_seen_at) {
+      const elapsed = Date.now() - new Date(data.last_seen_at).getTime();
+      if (elapsed < 2 * 60 * 1000) return;
+    }
+
+    const { error: updateError } = await client
+      .from("app_users")
+      .update({ last_seen_at: now() })
+      .eq("id", userId);
+    throwWriteError(updateError);
+  } catch {
+    // Presence tracking is optional.
+  }
+}
+
+export async function deleteUser(actorId: string, targetUserId: string): Promise<void> {
+  if (targetUserId === actorId) {
+    throw new Error("You cannot delete your own account.");
+  }
+
+  const client = getSupabaseAdmin();
+  const { data: users, error } = await client.from("app_users").select("id, role");
+  throwReadError(error);
+
+  const rows = (users ?? []) as { id: string; role: UserRole }[];
+  const target = rows.find((row) => row.id === targetUserId);
+  if (!target) throw new Error("User not found.");
+
+  if (target.role === "admin") {
+    const adminCount = rows.filter((row) => row.role === "admin").length;
+    if (adminCount <= 1) {
+      throw new Error("Cannot delete the last admin.");
+    }
+  }
+
+  const { error: deleteError } = await client.from("app_users").delete().eq("id", targetUserId);
+  throwWriteError(deleteError);
+
+  try {
+    const { removeUserAvatarFiles } = await import("@/lib/avatar");
+    removeUserAvatarFiles(targetUserId);
+  } catch {
+    // Avatar cleanup is optional.
+  }
 }
 
 export async function updateUserMembership(
@@ -1378,6 +1440,7 @@ export async function getFansForMessaging(): Promise<AdminUserSummary[]> {
   })[])
     .map((row) => ({
       ...row,
+      last_seen_at: null,
       membership_tier: normalizeMembershipTier(row.membership_tier),
       membership_status: normalizeMembershipStatus(row.membership_status),
     }))
@@ -1646,7 +1709,7 @@ export async function getMessageThreadsForAdmin(): Promise<MessageThread[]> {
   const [{ data: messages, error: messagesError }, { data: users, error: usersError }] =
     await Promise.all([
       client.from("messages").select("*"),
-      client.from("app_users").select("id, display_name, email, membership_tier, role"),
+      client.from("app_users").select("id, display_name, email, membership_tier, role, last_seen_at"),
     ]);
   throwReadError(messagesError);
   throwReadError(usersError);
@@ -1657,6 +1720,7 @@ export async function getMessageThreadsForAdmin(): Promise<MessageThread[]> {
       email: string;
       membership_tier: string | null;
       role: string;
+      last_seen_at: string | null;
     }[])
       .filter((u) => u.role === "fan")
       .map((u) => [
@@ -1665,6 +1729,7 @@ export async function getMessageThreadsForAdmin(): Promise<MessageThread[]> {
           name: u.display_name,
           email: u.email,
           membership_tier: normalizeMembershipTier(u.membership_tier),
+          last_seen_at: u.last_seen_at ?? null,
         },
       ])
   );

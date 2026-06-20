@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export function AdminFormField({
   label,
   name,
@@ -129,11 +131,17 @@ export function AdminSubmitButton({ label }: { label: string }) {
   );
 }
 
-export function AdminPageHeader({ title, description }: { title: string; description?: string }) {
+export function AdminPageHeader({
+  title,
+  description,
+}: {
+  title: string;
+  description?: ReactNode;
+}) {
   return (
     <div className="mb-10">
       <h1 className="font-display mb-2 text-3xl text-foreground">{title}</h1>
-      {description && <p className="text-muted">{description}</p>}
+      {description && <div className="text-muted">{description}</div>}
     </div>
   );
 }
