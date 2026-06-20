@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
-import { getNotificationsForUser, markAllNotificationsAsRead } from "@/lib/repository";
+import { getNotificationsForUser } from "@/lib/repository";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DashboardEmptyState } from "@/components/dashboard/ui/DashboardEmptyState";
+import { MarkNotificationsRead } from "@/components/dashboard/MarkNotificationsRead";
 import { formatDashboardDateTime } from "@/lib/dashboard-utils";
 
 export const metadata: Metadata = {
@@ -17,13 +17,12 @@ export default async function NotificationsPage() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  await markAllNotificationsAsRead(user.id);
-  revalidatePath("/dashboard", "layout");
-
   const notifications = await getNotificationsForUser(user.id);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
+      <MarkNotificationsRead />
+
       <DashboardPageHeader
         eyebrow="Alerts"
         title="Notifications"
