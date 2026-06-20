@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { replyAsFanAction } from "@/app/actions/message-actions";
 import { getCurrentUser } from "@/lib/auth";
-import { getThreadMessages, markThreadReadByFan } from "@/lib/repository";
+import { getProfileById, getThreadMessages, markThreadReadByFan } from "@/lib/repository";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { MessageThreadChat } from "@/components/messages/MessageThreadChat";
 
@@ -33,6 +33,9 @@ export default async function FanThreadPage({
 
   await markThreadReadByFan(threadId, user.id);
 
+  const profile = await getProfileById(user.id);
+  const displayName = profile?.display_name?.trim() || user.email;
+
   const subject = messages[0].subject;
   const reply = replyAsFanAction.bind(null, threadId);
 
@@ -53,7 +56,13 @@ export default async function FanThreadPage({
         </div>
       )}
 
-      <MessageThreadChat messages={messages} replyAction={reply} replyLabel="Send reply" />
+      <MessageThreadChat
+        messages={messages}
+        replyAction={reply}
+        replyLabel="Send reply"
+        senderRole="fan"
+        senderDisplayName={displayName}
+      />
     </div>
   );
 }

@@ -82,6 +82,7 @@ export default async function AdminThreadPage({
         messages={messages}
         replyAction={reply}
         replyLabel="Send reply"
+        senderRole="admin"
         fromNameField
         defaultFromName="Keanu Fan Team"
       />
