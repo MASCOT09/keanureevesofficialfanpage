@@ -7,7 +7,7 @@ const links = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/giveaways", label: "Giveaways" },
   { href: "/admin/meet-and-greet", label: "Meet & Greet" },
-  { href: "/admin/messages", label: "Fan Messages" },
+  { href: "/admin/messages", label: "Fan Messages", badgeKey: "messages" as const },
   { href: "/admin/memberships", label: "Memberships" },
   { href: "/admin/communities", label: "Communities" },
   { href: "/admin/contact-links", label: "Contact Links" },
@@ -20,10 +20,12 @@ export function AdminSidebar({
   className = "",
   onNavigate,
   onClose,
+  unreadFanMessages = 0,
 }: {
   className?: string;
   onNavigate?: () => void;
   onClose?: () => void;
+  unreadFanMessages?: number;
 }) {
   const pathname = usePathname();
 
@@ -66,7 +68,14 @@ export function AdminSidebar({
                   : "text-muted hover:bg-white/5 hover:text-foreground"
               }`}
             >
-              {link.label}
+              <span className="flex items-center justify-between gap-2">
+                <span>{link.label}</span>
+                {"badgeKey" in link && link.badgeKey === "messages" && unreadFanMessages > 0 && (
+                  <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-on-accent">
+                    {unreadFanMessages}
+                  </span>
+                )}
+              </span>
             </Link>
           );
         })}

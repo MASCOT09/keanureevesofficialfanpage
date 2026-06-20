@@ -496,6 +496,18 @@ async function notifyMembershipDecision(
   });
 
   writeMultipleSheets({ messages, notifications });
+
+  try {
+    const { pushAlertToUser } = await import("@/lib/push-alerts");
+    await pushAlertToUser({
+      userId,
+      title: notificationTitle,
+      body: notificationMessage,
+      url: "/dashboard/notifications",
+    });
+  } catch {
+    // Push is optional.
+  }
 }
 
 export async function approveMembershipApplication(applicationId: string) {
@@ -1230,6 +1242,22 @@ export async function sendAdminMessage(input: {
     // Inbox message was saved — email delivery is optional.
   }
 
+  try {
+    const { pushAlertToUser } = await import("@/lib/push-alerts");
+    await Promise.all(
+      targets.map((user) =>
+        pushAlertToUser({
+          userId: user.id,
+          title: subject,
+          body: notifyPreview.slice(0, 120),
+          url: "/dashboard/messages",
+        })
+      )
+    );
+  } catch {
+    // Push is optional.
+  }
+
   return { sent: targets.length };
 }
 
@@ -1288,6 +1316,22 @@ export async function notifyAllFansAbout(input: {
     );
   } catch {
     // Inbox + notifications were saved — email delivery is optional.
+  }
+
+  try {
+    const { pushAlertToUser } = await import("@/lib/push-alerts");
+    await Promise.all(
+      fans.map((fan) =>
+        pushAlertToUser({
+          userId: fan.id,
+          title: input.title,
+          body: input.message.slice(0, 120),
+          url: input.linkPath,
+        })
+      )
+    );
+  } catch {
+    // Push is optional.
   }
 
   return { notified: fans.length };
@@ -1525,6 +1569,7 @@ export async function replyAsAdminToThread(input: {
   const fan = readSheet<UserRow>("users").find((u) => u.id === first.user_id);
   if (fan) {
     await notifyFanOfUnreadInboxMessage({
+      fanUserId: first.user_id,
       fanEmail: fan.email,
       fanName: fan.display_name,
       threadId: input.threadId,
@@ -1581,6 +1626,66 @@ export async function markNotificationAsRead(notificationId: string, userId: str
   if (index === -1) return;
   notifications[index] = { ...notifications[index], is_read: true };
   writeSheet("notifications", notifications);
+}
+
+export async function markAllNotificationsAsRead(userId: string): Promise<void> {
+  const notifications = readSheet<NotificationRow>("notifications");
+  let changed = false;
+  for (let i = 0; i < notifications.length; i++) {
+    if (notifications[i].user_id === userId && !parseBool(notifications[i].is_read)) {
+      notifications[i] = { ...notifications[i], is_read: true };
+      changed = true;
+    }
+  }
+  if (changed) writeSheet("notifications", notifications);
+}
+
+interface PushSubscriptionRow {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  created_at: string;
+}
+
+export async function savePushSubscription(
+  userId: string,
+  subscription: { endpoint: string; p256dh: string; auth: string }
+): Promise<void> {
+  const rows = readSheet<PushSubscriptionRow>("push_subscriptions");
+  const existingIndex = rows.findIndex(
+    (row) => row.user_id === userId && row.endpoint === subscription.endpoint
+  );
+  const row: PushSubscriptionRow = {
+    id: existingIndex === -1 ? randomUUID() : rows[existingIndex].id,
+    user_id: userId,
+    endpoint: subscription.endpoint,
+    p256dh: subscription.p256dh,
+    auth: subscription.auth,
+    created_at: existingIndex === -1 ? now() : rows[existingIndex].created_at,
+  };
+  if (existingIndex === -1) rows.unshift(row);
+  else rows[existingIndex] = row;
+  writeSheet("push_subscriptions", rows);
+}
+
+export async function deletePushSubscription(userId: string, endpoint: string): Promise<void> {
+  const rows = readSheet<PushSubscriptionRow>("push_subscriptions").filter(
+    (row) => !(row.user_id === userId && row.endpoint === endpoint)
+  );
+  writeSheet("push_subscriptions", rows);
+}
+
+export async function getPushSubscriptionsForUser(userId: string) {
+  return readSheet<PushSubscriptionRow>("push_subscriptions").filter(
+    (row) => row.user_id === userId
+  );
+}
+
+export async function countUnreadMessagesForUser(userId: string): Promise<number> {
+  const threads = await getMessageThreadsForUser(userId);
+  return threads.reduce((total, thread) => total + thread.unread_for_fan, 0);
 }
 
 // ─── Admin stats ──────────────────────────────────────────────

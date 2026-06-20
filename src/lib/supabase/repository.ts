@@ -677,6 +677,18 @@ async function notifyMembershipDecision(
     created_at: timestamp,
   });
   throwWriteError(notificationError);
+
+  try {
+    const { pushAlertToUser } = await import("@/lib/push-alerts");
+    await pushAlertToUser({
+      userId,
+      title: notificationTitle,
+      body: notificationMessage,
+      url: "/dashboard/notifications",
+    });
+  } catch {
+    // Push is optional.
+  }
 }
 
 export async function approveMembershipApplication(applicationId: string) {
@@ -1452,6 +1464,22 @@ export async function sendAdminMessage(input: {
     // Inbox message was saved — email delivery is optional.
   }
 
+  try {
+    const { pushAlertToUser } = await import("@/lib/push-alerts");
+    await Promise.all(
+      targets.map((user) =>
+        pushAlertToUser({
+          userId: user.id,
+          title: subject,
+          body: notifyPreview.slice(0, 120),
+          url: "/dashboard/messages",
+        })
+      )
+    );
+  } catch {
+    // Push is optional.
+  }
+
   return { sent: targets.length };
 }
 
@@ -1515,7 +1543,23 @@ export async function notifyAllFansAbout(input: {
       }))
     );
   } catch {
-    // Inbox + notifications were saved — email delivery is optional.
+    // Inbox message was saved — email delivery is optional.
+  }
+
+  try {
+    const { pushAlertToUser } = await import("@/lib/push-alerts");
+    await Promise.all(
+      fans.map((fan) =>
+        pushAlertToUser({
+          userId: fan.id,
+          title: input.title,
+          body: input.message.slice(0, 120),
+          url: input.linkPath,
+        })
+      )
+    );
+  } catch {
+    // Push is optional.
   }
 
   return { notified: fans.length };
@@ -1794,6 +1838,7 @@ export async function replyAsAdminToThread(input: {
   throwReadError(fanError);
   if (fan) {
     await notifyFanOfUnreadInboxMessage({
+      fanUserId: first.user_id,
       fanEmail: fan.email,
       fanName: fan.display_name,
       threadId: input.threadId,
@@ -1859,6 +1904,78 @@ export async function markNotificationAsRead(notificationId: string, userId: str
     .eq("id", notificationId)
     .eq("user_id", userId);
   throwWriteError(error);
+}
+
+export async function markAllNotificationsAsRead(userId: string): Promise<void> {
+  const client = getSupabaseAdmin();
+  const { error } = await client
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("user_id", userId)
+    .eq("is_read", false);
+  throwWriteError(error);
+}
+
+interface PushSubscriptionRow {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  created_at: string;
+}
+
+export async function savePushSubscription(
+  userId: string,
+  subscription: { endpoint: string; p256dh: string; auth: string }
+): Promise<void> {
+  const client = getSupabaseAdmin();
+  const { data: existing, error: readError } = await client
+    .from("push_subscriptions")
+    .select("id, created_at")
+    .eq("user_id", userId)
+    .eq("endpoint", subscription.endpoint)
+    .maybeSingle<{ id: string; created_at: string }>();
+  throwReadError(readError);
+
+  const row: PushSubscriptionRow = {
+    id: existing?.id ?? randomUUID(),
+    user_id: userId,
+    endpoint: subscription.endpoint,
+    p256dh: subscription.p256dh,
+    auth: subscription.auth,
+    created_at: existing?.created_at ?? now(),
+  };
+
+  const { error } = await client.from("push_subscriptions").upsert(row, {
+    onConflict: "user_id,endpoint",
+  });
+  throwWriteError(error);
+}
+
+export async function deletePushSubscription(userId: string, endpoint: string): Promise<void> {
+  const client = getSupabaseAdmin();
+  const { error } = await client
+    .from("push_subscriptions")
+    .delete()
+    .eq("user_id", userId)
+    .eq("endpoint", endpoint);
+  throwWriteError(error);
+}
+
+export async function getPushSubscriptionsForUser(userId: string) {
+  const client = getSupabaseAdmin();
+  const { data, error } = await client
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("user_id", userId);
+  throwReadError(error);
+  return (data ?? []) as { endpoint: string; p256dh: string; auth: string }[];
+}
+
+export async function countUnreadMessagesForUser(userId: string): Promise<number> {
+  const threads = await getMessageThreadsForUser(userId);
+  return threads.reduce((total, thread) => total + thread.unread_for_fan, 0);
 }
 
 // ─── Admin stats ──────────────────────────────────────────────

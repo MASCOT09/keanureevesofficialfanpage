@@ -122,6 +122,7 @@ export async function signupAction(
     try {
       const adminEmails = await getAdminEmails();
       await sendSignupEmailAlerts({
+        fanUserId: user.id,
         fanName: displayName,
         fanEmail: user.email,
         country,

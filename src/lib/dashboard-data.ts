@@ -1,6 +1,8 @@
 import { cache } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import {
+  countUnreadFanRepliesForAdmin,
+  countUnreadMessagesForUser,
   getActiveGiveaways,
   getGiveawayEntriesForUser,
   getMessagesForUser,
@@ -66,6 +68,8 @@ export interface DashboardShellData {
   email: string;
   firstName: string;
   unreadNotifications: number;
+  unreadMessages: number;
+  unreadFanReplies: number;
   memberSince: string;
 }
 
@@ -90,7 +94,12 @@ async function loadDashboardShell(): Promise<DashboardShellData | null> {
   const profile = await getProfileById(user.id);
   if (!profile) return null;
 
-  const notifications = await getNotificationsForUser(user.id);
+  const isAdmin = profile.role === "admin";
+  const [notifications, unreadMessages, unreadFanReplies] = await Promise.all([
+    getNotificationsForUser(user.id),
+    isAdmin ? Promise.resolve(0) : countUnreadMessagesForUser(user.id),
+    isAdmin ? countUnreadFanRepliesForAdmin() : Promise.resolve(0),
+  ]);
   const unreadNotifications = notifications.filter((item) => !item.is_read).length;
 
   return {
@@ -98,6 +107,8 @@ async function loadDashboardShell(): Promise<DashboardShellData | null> {
     email: user.email,
     firstName: getFirstName(profile.display_name),
     unreadNotifications,
+    unreadMessages,
+    unreadFanReplies,
     memberSince: getMemberSince(profile.created_at),
   };
 }

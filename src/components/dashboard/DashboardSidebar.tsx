@@ -28,6 +28,9 @@ const navItems = [
   {
     href: "/dashboard/messages",
     label: "My Messages",
+    adminHref: "/admin/messages",
+    adminLabel: "Fan Messages",
+    badge: "messages" as const,
     icon: (
       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -146,13 +149,26 @@ export function DashboardSidebar({
 
       <nav className="flex flex-1 flex-col gap-1 p-3">
         {navItems.map((item) => {
-          const active = isActive(pathname, item.href, item.exact);
+          const isAdminMessages =
+            user.role === "admin" && "adminHref" in item && item.adminHref;
+          const href = isAdminMessages ? item.adminHref! : item.href;
+          const label = isAdminMessages && "adminLabel" in item ? item.adminLabel! : item.label;
+          const active = isAdminMessages
+            ? pathname.startsWith("/admin/messages")
+            : isActive(pathname, item.href, item.exact);
+          const messageBadge =
+            "badge" in item && item.badge === "messages"
+              ? user.role === "admin"
+                ? user.unreadFanReplies
+                : user.unreadMessages
+              : 0;
+
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={href}
               onClick={onNavigate}
-              title={collapsed ? item.label : undefined}
+              title={collapsed ? label : undefined}
               className={`flex items-center gap-3 rounded-[12px] px-3 py-3 text-sm tracking-wide transition-all duration-300 ${
                 active
                   ? "bg-accent/15 text-accent shadow-[inset_3px_0_0_0_#D4AF37]"
@@ -160,7 +176,12 @@ export function DashboardSidebar({
               } ${collapsed ? "justify-center" : ""}`}
             >
               <span className="shrink-0">{item.icon}</span>
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span>{label}</span>}
+              {!collapsed && messageBadge > 0 && (
+                <span className="ml-auto rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-on-accent">
+                  {messageBadge}
+                </span>
+              )}
               {!collapsed && item.href === "/dashboard/notifications" && user.unreadNotifications > 0 && (
                 <span className="ml-auto rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-on-accent">
                   {user.unreadNotifications}

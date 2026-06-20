@@ -24,9 +24,9 @@ export function AdminControlBanner() {
         </Link>
         <Link
           href="/admin/messages"
-          className="rounded-full border border-border bg-card/40 px-5 py-2.5 text-sm text-foreground transition-colors hover:border-accent/30 hover:text-accent"
+          className="rounded-full border border-accent/40 bg-accent/15 px-5 py-2.5 text-sm font-medium text-accent transition-all hover:bg-accent/25"
         >
-          Send fan messages
+          Chat with fans
         </Link>
         <Link
           href="/admin"

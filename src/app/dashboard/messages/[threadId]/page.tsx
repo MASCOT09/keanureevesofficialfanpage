@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { replyAsFanAction } from "@/app/actions/message-actions";
 import { getCurrentUser } from "@/lib/auth";
 import { getThreadMessages, markThreadReadByFan } from "@/lib/repository";
@@ -23,6 +23,11 @@ export default async function FanThreadPage({
   if (!user) return null;
 
   const [{ threadId }, { sent }] = await Promise.all([params, searchParams]);
+
+  if (user.role === "admin") {
+    redirect(`/admin/messages/${threadId}`);
+  }
+
   const messages = await getThreadMessages(threadId, user.id);
   if (!messages.length) notFound();
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createFanMessageAction } from "@/app/actions/message-actions";
 import { getCurrentUser } from "@/lib/auth";
 import { getMessageThreadsForUser } from "@/lib/repository";
@@ -20,6 +21,10 @@ export default async function MessagesPage({
 }) {
   const user = await getCurrentUser();
   if (!user) return null;
+
+  if (user.role === "admin") {
+    redirect("/admin/messages");
+  }
 
   const [{ new: newTopic }, threads] = await Promise.all([
     searchParams,

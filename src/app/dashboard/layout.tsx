@@ -24,6 +24,8 @@ export default async function DashboardLayout({
     role: data.profile.role,
     memberSince: data.memberSince,
     unreadNotifications: data.unreadNotifications,
+    unreadMessages: data.unreadMessages,
+    unreadFanReplies: data.unreadFanReplies,
     avatarUrl: data.profile.avatar_url,
     membershipTier: data.profile.membership_tier,
     membershipLabel:

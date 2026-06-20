@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardTopBar } from "./DashboardTopBar";
 import { AdminControlBanner } from "./AdminControlBanner";
+import { PushNotificationPrompt } from "@/components/PushNotificationPrompt";
 
 export interface DashboardUser {
   id: string;
@@ -13,6 +14,8 @@ export interface DashboardUser {
   role: string;
   memberSince: string;
   unreadNotifications: number;
+  unreadMessages: number;
+  unreadFanReplies: number;
   avatarUrl: string | null;
   membershipTier: string;
   membershipLabel: string;
@@ -63,6 +66,7 @@ export function DashboardShell({
           {user.role === "admin" && <AdminControlBanner />}
           {children}
         </main>
+        <PushNotificationPrompt />
       </div>
     </div>
   );

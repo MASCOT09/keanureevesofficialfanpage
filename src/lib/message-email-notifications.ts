@@ -14,6 +14,7 @@ function logEmailBatch(label: string, result: { delivered: number; simulated: nu
 }
 
 export async function sendSignupEmailAlerts(input: {
+  fanUserId: string;
   fanName: string;
   fanEmail: string;
   country: string | null;
@@ -65,6 +66,23 @@ export async function sendSignupEmailAlerts(input: {
   });
 
   console.info("[email] fan welcome signup", welcomeResult);
+
+  try {
+    const { pushAlertToUser, pushAlertToAdmins } = await import("@/lib/push-alerts");
+    await pushAlertToUser({
+      userId: input.fanUserId,
+      title: "Welcome to the fan community",
+      body: "Your account is ready. Open your dashboard to get started.",
+      url: "/dashboard",
+    });
+    await pushAlertToAdmins({
+      title: "New fan signup",
+      body: `${input.fanName} (${input.fanEmail}) just joined.`,
+      url: "/admin/users",
+    });
+  } catch {
+    // Push is optional.
+  }
 }
 
 export async function sendMembershipApplicationEmailAlerts(input: {
@@ -105,9 +123,21 @@ export async function sendMembershipApplicationEmailAlerts(input: {
     }))
   );
   logEmailBatch("admin membership application", result);
+
+  try {
+    const { pushAlertToAdmins } = await import("@/lib/push-alerts");
+    await pushAlertToAdmins({
+      title: "New membership application",
+      body: `${input.fanName} applied for ${planName} ($${amount}).`,
+      url: "/admin/memberships",
+    });
+  } catch {
+    // Push is optional.
+  }
 }
 
 export async function notifyFanOfUnreadInboxMessage(input: {
+  fanUserId: string;
   fanEmail: string;
   fanName: string;
   threadId: string;
@@ -132,6 +162,13 @@ export async function notifyFanOfUnreadInboxMessage(input: {
     ]);
   } catch {
     // Inbox was saved — email is optional.
+  }
+
+  try {
+    const { pushNewMessageToFan } = await import("@/lib/push-alerts");
+    await pushNewMessageToFan(input.fanUserId, input.threadId);
+  } catch {
+    // Push is optional.
   }
 }
 
@@ -206,5 +243,12 @@ export async function notifyAdminsOfUnreadFanMessage(input: {
     );
   } catch {
     // Inbox was saved — email is optional.
+  }
+
+  try {
+    const { pushNewFanMessageToAdmins } = await import("@/lib/push-alerts");
+    await pushNewFanMessageToAdmins(fanName, input.threadId);
+  } catch {
+    // Push is optional.
   }
 }

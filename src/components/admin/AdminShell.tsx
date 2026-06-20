@@ -3,13 +3,20 @@
 import { useState } from "react";
 import { AdminSidebar } from "./AdminSidebar";
 import { AdminTopBar } from "./AdminTopBar";
+import { PushNotificationPrompt } from "@/components/PushNotificationPrompt";
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({
+  children,
+  unreadFanMessages = 0,
+}: {
+  children: React.ReactNode;
+  unreadFanMessages?: number;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AdminSidebar className="hidden lg:flex" />
+      <AdminSidebar className="hidden lg:flex" unreadFanMessages={unreadFanMessages} />
 
       {mobileOpen && (
         <div
@@ -22,11 +29,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         className={`fixed inset-y-0 left-0 z-50 lg:hidden ${mobileOpen ? "flex" : "hidden"}`}
         onNavigate={() => setMobileOpen(false)}
         onClose={() => setMobileOpen(false)}
+        unreadFanMessages={unreadFanMessages}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AdminTopBar onMenuClick={() => setMobileOpen(true)} />
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-10">{children}</main>
+        <PushNotificationPrompt />
       </div>
     </div>
   );
