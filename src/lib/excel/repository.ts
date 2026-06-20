@@ -1240,13 +1240,14 @@ export async function countUnreadNotifications(userId: string): Promise<number> 
 export async function getFansForMessaging(): Promise<AdminUserSummary[]> {
   return readSheet<UserRow>("users")
     .filter((u) => u.role === "fan")
-    .map(({ id, email, display_name, role, country, created_at, membership_tier, membership_status }) => ({
+    .map(({ id, email, display_name, role, country, created_at, last_seen_at, membership_tier, membership_status }) => ({
       id,
       email,
       display_name,
       role,
       country: country ?? null,
       created_at,
+      last_seen_at: last_seen_at ?? null,
       membership_tier: normalizeMembershipTier(membership_tier),
       membership_status: normalizeMembershipStatus(membership_status),
     }))
