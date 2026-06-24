@@ -74,7 +74,7 @@ export default async function AdminMeetGreetPage({
               { value: "closed", label: "Closed" },
             ]}
           />
-          <AdminSubmitButton label="Create" />
+          <AdminSubmitButton label="Create" pendingLabel="Creating..." />
         </form>
       </AdminCard>
 
@@ -125,7 +125,7 @@ export default async function AdminMeetGreetPage({
                   { value: "closed", label: "Closed" },
                 ]}
               />
-              <AdminSubmitButton label="Update" />
+              <AdminSubmitButton label="Update" pendingLabel="Updating..." />
             </form>
             <form action={deleteMeetGreetEventForm} className="mt-3">
               <input type="hidden" name="id" value={event.id} />

@@ -5,6 +5,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/client";
 
 const LOCAL_MEDIA_DIR = path.join(process.cwd(), "public", "uploads");
 const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_FILES_PER_UPLOAD = 8;
+const MAX_TOTAL_BYTES = 18 * 1024 * 1024;
 const ALLOWED_TYPES = new Map([
   ["image/jpeg", "jpg"],
   ["image/png", "png"],
@@ -15,6 +17,17 @@ const ALLOWED_TYPES = new Map([
 function isSupabaseStorageConfigured(): boolean {
   return Boolean(
     process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  );
+}
+
+function isUploadBlob(item: FormDataEntryValue): item is File {
+  return (
+    typeof item === "object" &&
+    item !== null &&
+    "arrayBuffer" in item &&
+    "size" in item &&
+    typeof (item as File).size === "number" &&
+    (item as File).size > 0
   );
 }
 
@@ -53,13 +66,27 @@ async function uploadToLocal(folder: string, file: File): Promise<string> {
 
 export async function uploadSiteMedia(folder: string, file: File): Promise<string> {
   if (isSupabaseStorageConfigured()) {
-    try {
-      return await uploadToSupabase(folder, file);
-    } catch (error) {
-      console.error("[media] supabase upload failed, trying local", error);
-    }
+    return uploadToSupabase(folder, file);
+  }
+  if (process.env.VERCEL === "1") {
+    throw new Error("Image upload is unavailable. Check Supabase storage settings on Vercel.");
   }
   return uploadToLocal(folder, file);
+}
+
+function readUploadFiles(formData: FormData, fieldName: string): File[] {
+  const entries = formData.getAll(fieldName).filter(isUploadBlob);
+
+  if (entries.length > MAX_FILES_PER_UPLOAD) {
+    throw new Error(`You can upload up to ${MAX_FILES_PER_UPLOAD} images at a time.`);
+  }
+
+  const totalBytes = entries.reduce((sum, file) => sum + file.size, 0);
+  if (totalBytes > MAX_TOTAL_BYTES) {
+    throw new Error("Total upload size is too large. Try fewer or smaller images.");
+  }
+
+  return entries;
 }
 
 export async function parseMultipleImageUploads(
@@ -72,16 +99,21 @@ export async function parseMultipleImageUploads(
     return [];
   }
 
-  const files = formData.getAll(fieldName).filter(
-    (item): item is File => item instanceof File && item.size > 0
-  );
-
+  const entries = readUploadFiles(formData, fieldName);
   const uploaded: string[] = [];
-  for (const file of files) {
+
+  for (const file of entries) {
     uploaded.push(await uploadSiteMedia(folder, file));
   }
 
-  if (uploaded.length) return uploaded;
+  if (uploaded.length) {
+    const merged = [...keepExisting];
+    for (const url of uploaded) {
+      if (!merged.includes(url)) merged.push(url);
+    }
+    return merged;
+  }
+
   return keepExisting;
 }
 

@@ -1,4 +1,7 @@
 import type { ReactNode } from "react";
+import { AdminSubmitButton } from "@/components/admin/AdminSubmitButton";
+
+export { AdminSubmitButton };
 
 export function AdminFormField({
   label,
@@ -162,17 +165,6 @@ export function AdminMultiImageField({
         </label>
       )}
     </div>
-  );
-}
-
-export function AdminSubmitButton({ label }: { label: string }) {
-  return (
-    <button
-      type="submit"
-      className="rounded-full bg-accent px-8 py-3 text-sm font-medium tracking-wide text-[#0F0F10] transition-all duration-300 hover:bg-accent-hover hover:shadow-[0_0_32px_rgba(212,175,55,0.3)]"
-    >
-      {label}
-    </button>
   );
 }
 
