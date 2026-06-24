@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { formatDashboardDateTime } from "@/lib/dashboard-utils";
+import { MembershipPaymentOptions } from "@/components/messages/MembershipPaymentOptions";
 import type { Message, MessageSenderRole } from "@/types/messages";
 
 interface MessageThreadChatProps {
@@ -12,6 +13,43 @@ interface MessageThreadChatProps {
   fromNameField?: boolean;
   defaultFromName?: string;
   senderDisplayName?: string;
+}
+
+function parsePaymentMetadata(metadata: string | null) {
+  if (!metadata) return null;
+  try {
+    const data = JSON.parse(metadata) as { planName?: string; amount?: number };
+    if (!data.planName || typeof data.amount !== "number") return null;
+    return { planName: data.planName, amount: data.amount };
+  } catch {
+    return null;
+  }
+}
+
+function MessageContent({ message }: { message: Message }) {
+  const payment = parsePaymentMetadata(message.metadata);
+
+  return (
+    <>
+      {message.body && message.body !== "(Image)" && (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">{message.body}</p>
+      )}
+      {message.message_kind === "payment_options" && payment && (
+        <MembershipPaymentOptions planName={payment.planName} amount={payment.amount} />
+      )}
+      {message.image_url && (
+        <div className="mt-3 overflow-hidden rounded-[12px] border border-border/60">
+          <a href={message.image_url} target="_blank" rel="noopener noreferrer">
+            <img
+              src={message.image_url}
+              alt="Attached image"
+              className="max-h-80 w-full object-contain bg-black/20"
+            />
+          </a>
+        </div>
+      )}
+    </>
+  );
 }
 
 export function MessageThreadChat({
@@ -26,18 +64,30 @@ export function MessageThreadChat({
   const [items, setItems] = useState(messages);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setItems(messages);
     setSending(false);
     setError(null);
+    setImagePreview(null);
   }, [messages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [items.length]);
+
+  function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setImagePreview(null);
+      return;
+    }
+    setImagePreview(URL.createObjectURL(file));
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,7 +96,9 @@ export function MessageThreadChat({
     const form = event.currentTarget;
     const formData = new FormData(form);
     const body = (formData.get("body") as string)?.trim();
-    if (!body) return;
+    const imageFile = formData.get("image") as File | null;
+    const hasImage = imageFile && imageFile.size > 0;
+    if (!body && !hasImage) return;
 
     const fromName = fromNameField
       ? (formData.get("from_name") as string)?.trim() || defaultFromName
@@ -62,17 +114,22 @@ export function MessageThreadChat({
       thread_id: base.thread_id,
       sender_role: senderRole,
       subject: base.subject,
-      body,
+      body: body || "(Image)",
       from_name: fromName,
       is_read: true,
       status: senderRole === "fan" ? "read" : "unread",
       created_at: new Date().toISOString(),
+      image_url: imagePreview,
+      message_kind: "text",
+      metadata: null,
     };
 
     setSending(true);
     setError(null);
     setItems((prev) => [...prev, optimistic]);
     form.reset();
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     if (fromNameField) {
       const fromInput = form.querySelector<HTMLInputElement>('[name="from_name"]');
       if (fromInput) fromInput.value = defaultFromName;
@@ -81,8 +138,9 @@ export function MessageThreadChat({
     startTransition(async () => {
       try {
         const payload = new FormData();
-        payload.set("body", body);
+        if (body) payload.set("body", body);
         if (fromNameField) payload.set("from_name", fromName);
+        if (hasImage && imageFile) payload.set("image", imageFile);
         await replyAction(payload);
       } catch (err) {
         setSending(false);
@@ -117,7 +175,7 @@ export function MessageThreadChat({
                   </span>
                 )}
               </div>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">{message.body}</p>
+              <MessageContent message={message} />
             </article>
           );
         })}
@@ -151,11 +209,34 @@ export function MessageThreadChat({
             id="body"
             name="body"
             rows={5}
-            required
             disabled={sending}
             placeholder="Write your message..."
             className="w-full rounded-[16px] border border-border bg-background/80 px-4 py-3 text-sm text-foreground outline-none focus:border-accent/50 disabled:opacity-60"
           />
+        </div>
+        <div>
+          <label htmlFor="image" className="mb-2 block text-sm tracking-wide text-muted">
+            Attach image (optional)
+          </label>
+          <input
+            ref={fileInputRef}
+            id="image"
+            name="image"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            disabled={sending}
+            onChange={handleImageChange}
+            className="block w-full text-sm text-muted file:mr-4 file:rounded-full file:border-0 file:bg-accent/15 file:px-4 file:py-2 file:text-sm file:font-medium file:text-accent"
+          />
+          {imagePreview && (
+            <div className="mt-3 overflow-hidden rounded-[12px] border border-border/60">
+              <img
+                src={imagePreview}
+                alt="Preview"
+                className="max-h-48 w-full object-contain bg-black/20"
+              />
+            </div>
+          )}
         </div>
         {error && (
           <p className="text-sm text-red-400" role="alert">

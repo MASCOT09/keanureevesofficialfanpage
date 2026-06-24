@@ -39,7 +39,10 @@ export function buildMessageThreads(
       membership_tier: fan.membership_tier,
       fan_last_seen_at: fan.last_seen_at ?? null,
       last_message_at: last.created_at,
-      last_message_preview: last.body.replace(/\s+/g, " ").trim().slice(0, 120),
+      last_message_preview:
+        last.image_url && !last.body.trim()
+          ? "📷 Image"
+          : last.body.replace(/\s+/g, " ").trim().slice(0, 120),
       last_sender_role: last.sender_role,
       unread_for_admin: sorted.filter((m) => m.sender_role === "fan" && !m.is_read).length,
       unread_for_fan: sorted.filter((m) => m.sender_role === "admin" && !m.is_read).length,

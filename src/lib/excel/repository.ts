@@ -24,6 +24,7 @@ import type {
 } from "@/types/database";
 import type { Message, MessageThread } from "@/types/messages";
 import { buildMessageThreads } from "@/lib/message-threads";
+import { buildMembershipPaymentAutoReply } from "@/lib/membership-payment-auto-reply";
 import {
   notifyAdminsOfUnreadFanMessage,
   notifyFanOfMembershipUpgrade,
@@ -543,6 +544,65 @@ export async function createMembershipApplication(
     });
   }
   writeSheet("notifications", notifications);
+
+  try {
+    await sendMembershipPaymentAutoReply(userId, tier);
+  } catch (error) {
+    console.error("[membership] payment auto-reply failed", error);
+  }
+}
+
+async function sendMembershipPaymentAutoReply(
+  userId: string,
+  tier: MembershipApplication["tier"]
+): Promise<void> {
+  const messages = readSheet<MessageRow>("messages");
+  const userMessages = messages.filter((m) => m.user_id === userId);
+  const reply = buildMembershipPaymentAutoReply(tier);
+  const existing = userMessages.filter((m) => m.subject.startsWith("Membership application:"));
+  const messageId = randomUUID();
+  const threadId =
+    existing.length > 0
+      ? (existing.sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )[0].thread_id ?? existing[0].id)
+      : messageId;
+  const timestamp = now();
+
+  messages.unshift({
+    id: messageId,
+    user_id: userId,
+    thread_id: threadId,
+    sender_role: "admin",
+    subject: reply.subject,
+    body: reply.body,
+    from_name: "Keanu Fan Team",
+    is_read: false,
+    status: "unread",
+    created_at: timestamp,
+    image_url: null,
+    message_kind: reply.message_kind,
+    metadata: reply.metadata,
+  });
+
+  const notifications = readSheet<NotificationRow>("notifications");
+  notifications.unshift({
+    id: randomUUID(),
+    user_id: userId,
+    title: "Membership payment options",
+    message: `Choose how you'd like to pay for ${getMembershipLabel(tier)}.`,
+    is_read: false,
+    created_at: timestamp,
+  });
+
+  writeMultipleSheets({ messages, notifications });
+
+  try {
+    const { pushNewMessageToFan } = await import("@/lib/push-alerts");
+    await pushNewMessageToFan(userId, threadId);
+  } catch {
+    // Push is optional.
+  }
 }
 
 async function notifyMembershipDecision(
@@ -1178,6 +1238,9 @@ interface MessageRow {
   is_read: boolean | string;
   status?: string;
   created_at: string;
+  image_url?: string | null;
+  message_kind?: string | null;
+  metadata?: string | null;
 }
 
 function normalizeMessageStatus(row: MessageRow): Message["status"] {
@@ -1201,6 +1264,9 @@ function mapMessage(row: MessageRow): Message {
     is_read: parseBool(row.is_read),
     status,
     created_at: row.created_at,
+    image_url: row.image_url ?? null,
+    message_kind: row.message_kind === "payment_options" ? "payment_options" : "text",
+    metadata: row.metadata ?? null,
   };
 }
 
@@ -1528,10 +1594,13 @@ export async function createFanMessageThread(input: {
   displayName: string;
   subject: string;
   body: string;
+  imageUrl?: string | null;
 }): Promise<string> {
   const subject = input.subject.trim();
   const body = input.body.trim();
-  if (!subject || !body) throw new Error("Subject and message are required.");
+  const imageUrl = input.imageUrl?.trim() || null;
+  if (!subject) throw new Error("Subject is required.");
+  if (!body && !imageUrl) throw new Error("Message or image is required.");
 
   const messages = readSheet<MessageRow>("messages");
   const messageId = randomUUID();
@@ -1541,11 +1610,14 @@ export async function createFanMessageThread(input: {
     thread_id: messageId,
     sender_role: "fan",
     subject,
-    body,
+    body: body || "(Image)",
     from_name: input.displayName.trim() || "Fan",
     is_read: false,
     status: "read",
     created_at: now(),
+    image_url: imageUrl,
+    message_kind: "text",
+    metadata: null,
   });
   writeSheet("messages", messages);
 
@@ -1564,9 +1636,11 @@ export async function replyAsFan(input: {
   displayName: string;
   threadId: string;
   body: string;
+  imageUrl?: string | null;
 }): Promise<void> {
   const body = input.body.trim();
-  if (!body) throw new Error("Message is required.");
+  const imageUrl = input.imageUrl?.trim() || null;
+  if (!body && !imageUrl) throw new Error("Message or image is required.");
 
   const messages = readSheet<MessageRow>("messages");
   const thread = messages.filter(
@@ -1584,11 +1658,14 @@ export async function replyAsFan(input: {
     thread_id: input.threadId,
     sender_role: "fan",
     subject,
-    body,
+    body: body || "(Image)",
     from_name: input.displayName.trim() || "Fan",
     is_read: false,
     status: "read",
     created_at: now(),
+    image_url: imageUrl,
+    message_kind: "text",
+    metadata: null,
   });
 
   for (let i = 0; i < messages.length; i++) {
@@ -1615,10 +1692,12 @@ export async function replyAsAdminToThread(input: {
   threadId: string;
   body: string;
   fromName: string;
+  imageUrl?: string | null;
 }): Promise<void> {
   const body = input.body.trim();
+  const imageUrl = input.imageUrl?.trim() || null;
   const fromName = input.fromName.trim() || "Keanu Fan Team";
-  if (!body) throw new Error("Message is required.");
+  if (!body && !imageUrl) throw new Error("Message or image is required.");
 
   const messages = readSheet<MessageRow>("messages");
   const thread = messages.filter((m) => m.thread_id === input.threadId || m.id === input.threadId);
@@ -1634,11 +1713,14 @@ export async function replyAsAdminToThread(input: {
     thread_id: input.threadId,
     sender_role: "admin",
     subject: first.subject,
-    body,
+    body: body || "(Image)",
     from_name: fromName,
     is_read: false,
     status: "unread",
     created_at: now(),
+    image_url: imageUrl,
+    message_kind: "text",
+    metadata: null,
   });
 
   for (let i = 0; i < messages.length; i++) {

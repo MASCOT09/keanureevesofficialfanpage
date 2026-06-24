@@ -7,6 +7,7 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { isAdmin } from "@/lib/auth";
 import { parseGiveawayImageUpload } from "@/lib/giveaway-image";
 import { getSession } from "@/lib/session";
+import { saveMessageImage } from "@/lib/message-image";
 import {
   createCommunity as addCommunity,
   createContactLink as addContactLink,
@@ -137,10 +138,18 @@ export async function sendAdminMessageAction(formData: FormData) {
 export async function replyAsAdminThreadAction(threadId: string, formData: FormData) {
   await requireAdmin();
 
+  const session = await getSession();
+  if (!session) throw new Error("Unauthorized");
+
   const body = (formData.get("body") as string)?.trim();
   const fromName = (formData.get("from_name") as string)?.trim() || "Keanu Fan Team";
+  let imageUrl: string | null = null;
+  const image = formData.get("image");
+  if (image instanceof File && image.size > 0) {
+    imageUrl = await saveMessageImage(session.sub, image);
+  }
 
-  await replyAsAdminToThread({ threadId, body, fromName });
+  await replyAsAdminToThread({ threadId, body, fromName, imageUrl });
   await markThreadReadByAdmin(threadId);
 
   revalidatePath("/admin/messages");

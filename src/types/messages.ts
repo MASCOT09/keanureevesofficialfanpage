@@ -1,5 +1,6 @@
 export type MessageStatus = "unread" | "read" | "replied";
 export type MessageSenderRole = "admin" | "fan";
+export type MessageKind = "text" | "payment_options";
 
 export interface Message {
   id: string;
@@ -12,6 +13,9 @@ export interface Message {
   is_read: boolean;
   status: MessageStatus;
   created_at: string;
+  image_url: string | null;
+  message_kind: MessageKind;
+  metadata: string | null;
 }
 
 export interface MessageThread {

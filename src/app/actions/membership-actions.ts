@@ -26,6 +26,7 @@ export async function applyForMembershipAction(tier: MembershipApplication["tier
     revalidatePath("/dashboard");
     revalidatePath("/admin/memberships");
     revalidatePath("/dashboard/notifications");
+    revalidatePath("/dashboard/messages");
 
     after(async () => {
       try {
