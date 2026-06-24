@@ -1,11 +1,17 @@
 "use server";
 
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { isAdmin } from "@/lib/auth";
-import { parseGiveawayImageUpload } from "@/lib/giveaway-image";
+import {
+  normalizeDatetimeLocal,
+  parseMultipleImageUploads,
+  resolveImageList,
+  serializeImageUrls,
+} from "@/lib/media-upload";
 import { getSession } from "@/lib/session";
 import { saveMessageImage } from "@/lib/message-image";
 import {
@@ -42,6 +48,24 @@ async function requireAdmin() {
   if (!(await isAdmin())) {
     throw new Error("Unauthorized");
   }
+}
+
+function scheduleFanNotification(input: {
+  title: string;
+  message: string;
+  inboxSubject: string;
+  inboxBody: string;
+  linkPath: string;
+}) {
+  after(async () => {
+    try {
+      await notifyAllFansAbout(input);
+      revalidatePath("/dashboard/notifications");
+      revalidatePath("/dashboard/messages");
+    } catch (error) {
+      console.error("[notify] fan notification failed", error);
+    }
+  });
 }
 
 export async function updateUserRoleAction(targetUserId: string, formData: FormData) {
@@ -177,72 +201,93 @@ export async function updateSiteSettingsAction(formData: FormData) {
 }
 
 export async function createGiveawayAction(formData: FormData) {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const id = randomUUID();
-  const imageUrl = await parseGiveawayImageUpload(id, formData);
-  const title = formData.get("title") as string;
-  const status = formData.get("status") as "draft" | "active" | "closed";
+    const id = randomUUID();
+    const imageUrls = await parseMultipleImageUploads("giveaways", formData);
+    const title = (formData.get("title") as string)?.trim();
+    const status = formData.get("status") as "draft" | "active" | "closed";
+    const endsAt = normalizeDatetimeLocal(formData.get("ends_at") as string);
 
-  await addGiveaway({
-    id,
-    title,
-    description: (formData.get("description") as string) || null,
-    rules: (formData.get("rules") as string) || null,
-    image_url: imageUrl,
-    ends_at: formData.get("ends_at") as string,
-    status,
-  });
+    if (!title) throw new Error("Title is required.");
 
-  if (status === "active") {
-    await notifyAllFansAbout({
-      title: "New giveaway is live",
-      message: `"${title}" is now open for entries.`,
-      inboxSubject: `Giveaway open: ${title}`,
-      inboxBody: `A new giveaway has opened. Sign in to enter before it ends.`,
-      linkPath: `/giveaways/${id}`,
+    await addGiveaway({
+      id,
+      title,
+      description: (formData.get("description") as string) || null,
+      rules: (formData.get("rules") as string) || null,
+      image_url: imageUrls[0] ?? null,
+      image_urls: serializeImageUrls(imageUrls),
+      ends_at: endsAt,
+      status,
     });
-    revalidatePath("/dashboard/notifications");
-    revalidatePath("/dashboard/messages");
-  }
 
-  revalidatePath("/admin/giveaways");
-  revalidatePath("/giveaways");
+    if (status === "active") {
+      scheduleFanNotification({
+        title: "New giveaway is live",
+        message: `"${title}" is now open for entries.`,
+        inboxSubject: `Giveaway open: ${title}`,
+        inboxBody: `A new giveaway has opened. Sign in to enter before it ends.`,
+        linkPath: `/giveaways/${id}`,
+      });
+    }
+
+    revalidatePath("/admin/giveaways");
+    revalidatePath("/giveaways");
+    redirect("/admin/giveaways?created=1");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    const message = error instanceof Error ? error.message : "Could not create giveaway.";
+    redirect(`/admin/giveaways?error=${encodeURIComponent(message)}`);
+  }
 }
 
 export async function updateGiveawayAction(id: string, formData: FormData) {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const existing = await getGiveawayById(id);
-  const imageUrl = await parseGiveawayImageUpload(id, formData, existing?.image_url ?? null);
-  const title = formData.get("title") as string;
-  const status = formData.get("status") as "draft" | "active" | "closed";
-  const wasActive = existing?.status === "active";
+    const existing = await getGiveawayById(id);
+    if (!existing) throw new Error("Giveaway not found.");
 
-  await saveGiveaway(id, {
-    title,
-    description: (formData.get("description") as string) || null,
-    rules: (formData.get("rules") as string) || null,
-    image_url: imageUrl,
-    ends_at: formData.get("ends_at") as string,
-    status,
-  });
+    const existingUrls = resolveImageList(existing);
+    const imageUrls = await parseMultipleImageUploads("giveaways", formData, "images", existingUrls);
+    const title = (formData.get("title") as string)?.trim();
+    const status = formData.get("status") as "draft" | "active" | "closed";
+    const wasActive = existing.status === "active";
+    const endsAt = normalizeDatetimeLocal(formData.get("ends_at") as string);
 
-  if (status === "active" && !wasActive) {
-    await notifyAllFansAbout({
-      title: "New giveaway is live",
-      message: `"${title}" is now open for entries.`,
-      inboxSubject: `Giveaway open: ${title}`,
-      inboxBody: `A new giveaway has opened. Sign in to enter before it ends.`,
-      linkPath: `/giveaways/${id}`,
+    if (!title) throw new Error("Title is required.");
+
+    await saveGiveaway(id, {
+      title,
+      description: (formData.get("description") as string) || null,
+      rules: (formData.get("rules") as string) || null,
+      image_url: imageUrls[0] ?? null,
+      image_urls: serializeImageUrls(imageUrls),
+      ends_at: endsAt,
+      status,
     });
-    revalidatePath("/dashboard/notifications");
-    revalidatePath("/dashboard/messages");
-  }
 
-  revalidatePath("/admin/giveaways");
-  revalidatePath("/giveaways");
-  revalidatePath(`/giveaways/${id}`);
+    if (status === "active" && !wasActive) {
+      scheduleFanNotification({
+        title: "New giveaway is live",
+        message: `"${title}" is now open for entries.`,
+        inboxSubject: `Giveaway open: ${title}`,
+        inboxBody: `A new giveaway has opened. Sign in to enter before it ends.`,
+        linkPath: `/giveaways/${id}`,
+      });
+    }
+
+    revalidatePath("/admin/giveaways");
+    revalidatePath("/giveaways");
+    revalidatePath(`/giveaways/${id}`);
+    redirect("/admin/giveaways?updated=1");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    const message = error instanceof Error ? error.message : "Could not update giveaway.";
+    redirect(`/admin/giveaways?error=${encodeURIComponent(message)}`);
+  }
 }
 
 export async function deleteGiveawayForm(formData: FormData) {
@@ -254,65 +299,96 @@ export async function deleteGiveawayForm(formData: FormData) {
 }
 
 export async function createMeetGreetEventAction(formData: FormData) {
-  await requireAdmin();
-  const title = formData.get("title") as string;
-  const status = formData.get("status") as "upcoming" | "closed";
+  try {
+    await requireAdmin();
+    const title = (formData.get("title") as string)?.trim();
+    const status = formData.get("status") as "upcoming" | "closed";
+    const imageUrls = await parseMultipleImageUploads("meet-greet", formData);
+    const eventDate = normalizeDatetimeLocal(formData.get("event_date") as string);
 
-  await addMeetGreetEvent({
-    title,
-    description: (formData.get("description") as string) || null,
-    location: (formData.get("location") as string) || null,
-    event_date: formData.get("event_date") as string,
-    max_spots: parseInt(formData.get("max_spots") as string, 10),
-    status,
-  });
+    if (!title) throw new Error("Title is required.");
 
-  if (status === "upcoming") {
-    await notifyAllFansAbout({
-      title: "Meet & Greet requests open",
-      message: `"${title}" is now accepting requests.`,
-      inboxSubject: `Meet & Greet open: ${title}`,
-      inboxBody: `A new meet and greet event is open for requests. Sign in to reserve your spot.`,
-      linkPath: "/dashboard/meet-and-greet",
+    const id = await addMeetGreetEvent({
+      title,
+      description: (formData.get("description") as string) || null,
+      location: (formData.get("location") as string) || null,
+      image_url: imageUrls[0] ?? null,
+      image_urls: serializeImageUrls(imageUrls),
+      event_date: eventDate,
+      max_spots: parseInt(formData.get("max_spots") as string, 10),
+      status,
     });
-    revalidatePath("/dashboard/notifications");
-    revalidatePath("/dashboard/messages");
-  }
 
-  revalidatePath("/admin/meet-and-greet");
-  revalidatePath("/meet-and-greet");
+    if (status === "upcoming") {
+      scheduleFanNotification({
+        title: "Meet & Greet requests open",
+        message: `"${title}" is now accepting requests.`,
+        inboxSubject: `Meet & Greet open: ${title}`,
+        inboxBody: `A new meet and greet event is open for requests. Sign in to reserve your spot.`,
+        linkPath: `/meet-and-greet/${id}`,
+      });
+    }
+
+    revalidatePath("/admin/meet-and-greet");
+    revalidatePath("/meet-and-greet");
+    redirect("/admin/meet-and-greet?created=1");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    const message = error instanceof Error ? error.message : "Could not create event.";
+    redirect(`/admin/meet-and-greet?error=${encodeURIComponent(message)}`);
+  }
 }
 
 export async function updateMeetGreetEventAction(id: string, formData: FormData) {
-  await requireAdmin();
-  const existing = await getMeetGreetEventById(id);
-  const title = formData.get("title") as string;
-  const status = formData.get("status") as "upcoming" | "closed";
-  const wasUpcoming = existing?.status === "upcoming";
+  try {
+    await requireAdmin();
+    const existing = await getMeetGreetEventById(id);
+    if (!existing) throw new Error("Event not found.");
 
-  await saveMeetGreetEvent(id, {
-    title,
-    description: (formData.get("description") as string) || null,
-    location: (formData.get("location") as string) || null,
-    event_date: formData.get("event_date") as string,
-    max_spots: parseInt(formData.get("max_spots") as string, 10),
-    status,
-  });
+    const existingUrls = resolveImageList(existing);
+    const imageUrls = await parseMultipleImageUploads(
+      "meet-greet",
+      formData,
+      "images",
+      existingUrls
+    );
+    const title = (formData.get("title") as string)?.trim();
+    const status = formData.get("status") as "upcoming" | "closed";
+    const wasUpcoming = existing.status === "upcoming";
+    const eventDate = normalizeDatetimeLocal(formData.get("event_date") as string);
 
-  if (status === "upcoming" && !wasUpcoming) {
-    await notifyAllFansAbout({
-      title: "Meet & Greet requests open",
-      message: `"${title}" is now accepting requests.`,
-      inboxSubject: `Meet & Greet open: ${title}`,
-      inboxBody: `A meet and greet event is now open for requests. Sign in to reserve your spot.`,
-      linkPath: "/dashboard/meet-and-greet",
+    if (!title) throw new Error("Title is required.");
+
+    await saveMeetGreetEvent(id, {
+      title,
+      description: (formData.get("description") as string) || null,
+      location: (formData.get("location") as string) || null,
+      image_url: imageUrls[0] ?? null,
+      image_urls: serializeImageUrls(imageUrls),
+      event_date: eventDate,
+      max_spots: parseInt(formData.get("max_spots") as string, 10),
+      status,
     });
-    revalidatePath("/dashboard/notifications");
-    revalidatePath("/dashboard/messages");
-  }
 
-  revalidatePath("/admin/meet-and-greet");
-  revalidatePath("/meet-and-greet");
+    if (status === "upcoming" && !wasUpcoming) {
+      scheduleFanNotification({
+        title: "Meet & Greet requests open",
+        message: `"${title}" is now accepting requests.`,
+        inboxSubject: `Meet & Greet open: ${title}`,
+        inboxBody: `A meet and greet event is now open for requests. Sign in to reserve your spot.`,
+        linkPath: `/meet-and-greet/${id}`,
+      });
+    }
+
+    revalidatePath("/admin/meet-and-greet");
+    revalidatePath("/meet-and-greet");
+    revalidatePath(`/meet-and-greet/${id}`);
+    redirect("/admin/meet-and-greet?updated=1");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    const message = error instanceof Error ? error.message : "Could not update event.";
+    redirect(`/admin/meet-and-greet?error=${encodeURIComponent(message)}`);
+  }
 }
 
 export async function deleteMeetGreetEventForm(formData: FormData) {

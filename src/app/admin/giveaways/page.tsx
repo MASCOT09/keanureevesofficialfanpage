@@ -6,14 +6,20 @@ import {
 } from "@/app/actions/admin-actions";
 import {
   AdminFormField,
-  AdminImageField,
+  AdminMultiImageField,
   AdminSelect,
   AdminSubmitButton,
   AdminPageHeader,
   AdminCard,
 } from "@/components/admin/AdminForm";
+import { resolveImageList } from "@/lib/media-upload";
 
-export default async function AdminGiveawaysPage() {
+export default async function AdminGiveawaysPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; created?: string; updated?: string }>;
+}) {
+  const params = await searchParams;
   const giveaways = await getAllGiveaways();
 
   return (
@@ -23,13 +29,29 @@ export default async function AdminGiveawaysPage() {
         description="Create and manage fan giveaways. Set status to Active for fans to see and enter them on /giveaways."
       />
 
+      {params.error && (
+        <div className="mb-6 rounded-[16px] border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {decodeURIComponent(params.error)}
+        </div>
+      )}
+      {params.created && (
+        <div className="mb-6 rounded-[16px] border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          Giveaway created successfully.
+        </div>
+      )}
+      {params.updated && (
+        <div className="mb-6 rounded-[16px] border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          Giveaway updated successfully.
+        </div>
+      )}
+
       <AdminCard className="mb-12">
         <h2 className="font-display mb-6 text-xl text-foreground">Create Giveaway</h2>
         <form action={createGiveaway} encType="multipart/form-data" className="space-y-4">
           <AdminFormField label="Title" name="title" required />
           <AdminFormField label="Description" name="description" rows={3} />
           <AdminFormField label="Rules" name="rules" rows={3} />
-          <AdminImageField />
+          <AdminMultiImageField label="Prize images" />
           <AdminFormField
             label="Ends At"
             name="ends_at"
@@ -71,7 +93,10 @@ export default async function AdminGiveawaysPage() {
                 defaultValue={g.rules ?? ""}
                 rows={2}
               />
-              <AdminImageField currentUrl={g.image_url} />
+              <AdminMultiImageField
+                label="Prize images"
+                currentUrls={resolveImageList(g)}
+              />
               <AdminFormField
                 label="Ends At"
                 name="ends_at"

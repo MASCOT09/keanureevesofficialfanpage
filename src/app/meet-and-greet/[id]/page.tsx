@@ -2,18 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getMeetGreetEventById } from "@/lib/data";
-import { getCurrentMembership, getCurrentUser } from "@/lib/auth";
+import { getCurrentMembership, getCurrentUser, isAdmin } from "@/lib/auth";
 import {
   countConfirmedRegistrations,
   getContactLinks,
   getRegistrationForUser,
+  getContentViewers,
+  recordContentView,
 } from "@/lib/repository";
 import { getTeamContactLinks } from "@/lib/contact-dms";
 import { canRegisterMeetAndGreet } from "@/lib/membership";
 import { RegisterButton } from "@/components/meet-greet/RegisterButton";
 import { Badge } from "@/components/ui/Badge";
+import { ContentImageGallery } from "@/components/content/ContentImageGallery";
+import { ContentViewersPanel } from "@/components/content/ContentViewersPanel";
+import { resolveImageList } from "@/lib/media-upload";
 
-import { buildPageMetadata, privateRobots } from "@/lib/seo";
+import { buildPageMetadata } from "@/lib/seo";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -23,13 +28,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const event = await getMeetGreetEventById(id);
   const title = event?.title ?? "Meet & Greet";
-  const description = event?.description ?? "Member-only meet and greet event details.";
+  const description = event?.description ?? "Official meet and greet event details.";
+  const images = event ? resolveImageList(event) : [];
 
   return buildPageMetadata({
     title,
     description,
     path: `/meet-and-greet/${id}`,
-    robots: privateRobots,
+    image: images[0] ?? event?.image_url ?? undefined,
+    imageAlt: event?.title,
   });
 }
 
@@ -40,6 +47,12 @@ export default async function MeetGreetDetailPage({ params }: Props) {
   if (!event) notFound();
 
   const user = await getCurrentUser();
+  if (user) {
+    await recordContentView("meet_greet", id, user.id);
+  }
+
+  const admin = await isAdmin();
+  const viewers = admin ? await getContentViewers("meet_greet", id) : [];
   const membership = await getCurrentMembership();
   const contactLinks = await getContactLinks();
   const teamLinks = getTeamContactLinks(contactLinks);
@@ -47,6 +60,7 @@ export default async function MeetGreetDetailPage({ params }: Props) {
   const canRegister = canRegisterMeetAndGreet(membership, membership.isAdmin);
   const registration = user ? await getRegistrationForUser(user.id, id) : null;
   const confirmedCount = await countConfirmedRegistrations(id);
+  const images = resolveImageList(event);
 
   const isOpen = event.status === "upcoming";
 
@@ -59,7 +73,9 @@ export default async function MeetGreetDetailPage({ params }: Props) {
         ← Back to events
       </Link>
 
-      <div className="luxury-card card-shine mb-10 p-8 sm:p-10">
+      <div className="luxury-card card-shine mb-10 overflow-hidden">
+        <ContentImageGallery images={images} alt={event.title} />
+        <div className="p-8 sm:p-10">
         <div className="mb-5">
           <Badge variant={isOpen ? "active" : "closed"}>
             {isOpen ? "Open for registration" : "Closed"}
@@ -77,6 +93,7 @@ export default async function MeetGreetDetailPage({ params }: Props) {
         {event.description && (
           <p className="mt-6 text-lg leading-relaxed text-muted">{event.description}</p>
         )}
+        </div>
       </div>
 
       <RegisterButton
@@ -87,6 +104,8 @@ export default async function MeetGreetDetailPage({ params }: Props) {
         canRegister={canRegister}
         teamLinks={teamLinks}
       />
+
+      {admin && <ContentViewersPanel viewers={viewers} />}
     </div>
   );
 }

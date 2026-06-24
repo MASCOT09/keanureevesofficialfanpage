@@ -3,8 +3,8 @@
 import { SiteLink } from "@/components/ui/SiteLink";
 import { pickSiteButton, type SiteButtonMap } from "@/lib/site-button-utils";
 
-const publicFooterKeys = ["navbar.home", "navbar.communities"] as const;
-const memberFooterKeys = ["navbar.giveaways", "navbar.meet_greet", "navbar.contact"] as const;
+const publicFooterKeys = ["navbar.home", "navbar.communities", "navbar.giveaways", "navbar.meet_greet"] as const;
+const memberFooterKeys = ["navbar.contact"] as const;
 
 function footerItem(map: SiteButtonMap, key: string) {
   const btn = pickSiteButton(map, key);
@@ -18,7 +18,7 @@ export function Footer({
   isLoggedIn?: boolean;
   buttons: SiteButtonMap;
 }) {
-  const keys = isLoggedIn ? [...publicFooterKeys, ...memberFooterKeys] : publicFooterKeys;
+  const keys = [...publicFooterKeys, ...(isLoggedIn ? memberFooterKeys : [])];
   const footerLinks = keys.map((key) => footerItem(buttons, key));
 
   return (

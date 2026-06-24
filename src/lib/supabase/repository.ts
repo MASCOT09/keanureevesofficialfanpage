@@ -23,6 +23,7 @@ import {
 } from "@/lib/message-email-notifications";
 import type { MembershipApplication, MembershipApplicationStatus } from "@/types/membership";
 import { normalizeContactUrl } from "@/lib/contact-dms";
+import type { ContentViewType, ContentViewer } from "@/lib/content-views";
 import {
   getMembershipLabel,
   getMembershipPrice,
@@ -1130,12 +1131,14 @@ export async function getMeetGreetEventById(id: string): Promise<MeetGreetEvent 
 
 export async function createMeetGreetEvent(data: Omit<MeetGreetEvent, "id" | "created_at">) {
   const client = getSupabaseAdmin();
+  const id = randomUUID();
   const { error } = await client.from("meet_greet_events").insert({
     ...data,
-    id: randomUUID(),
+    id,
     created_at: now(),
   });
   throwWriteError(error);
+  return id;
 }
 
 export async function updateMeetGreetEvent(id: string, data: Partial<MeetGreetEvent>) {
@@ -2153,4 +2156,93 @@ export async function getAdminStats() {
     communityCount: communityResult.count ?? 0,
     entryCount: entryResult.count ?? 0,
   };
+}
+
+// ─── Content views ────────────────────────────────────────────
+
+export async function recordContentView(
+  contentType: ContentViewType,
+  contentId: string,
+  userId: string
+): Promise<void> {
+  try {
+    const client = getSupabaseAdmin();
+    const { error } = await client.from("content_views").upsert(
+      {
+        id: randomUUID(),
+        content_type: contentType,
+        content_id: contentId,
+        user_id: userId,
+        viewed_at: now(),
+      },
+      { onConflict: "content_type,content_id,user_id", ignoreDuplicates: true }
+    );
+    throwWriteError(error);
+  } catch (error) {
+    console.error("[content_views] record failed", error);
+  }
+}
+
+export async function getContentViewers(
+  contentType: ContentViewType,
+  contentId: string
+): Promise<ContentViewer[]> {
+  const client = getSupabaseAdmin();
+  const { data: views, error } = await client
+    .from("content_views")
+    .select("user_id, viewed_at")
+    .eq("content_type", contentType)
+    .eq("content_id", contentId)
+    .order("viewed_at", { ascending: false });
+  throwReadError(error);
+
+  const rows = (views ?? []) as { user_id: string; viewed_at: string }[];
+  if (!rows.length) return [];
+
+  const userIds = rows.map((row) => row.user_id);
+  const { data: users, error: usersError } = await client
+    .from("app_users")
+    .select(
+      "id, email, display_name, role, country, created_at, last_seen_at, membership_tier, membership_status"
+    )
+    .in("id", userIds);
+  throwReadError(usersError);
+
+  const byId = new Map(
+    ((users ?? []) as (AdminUserSummary & {
+      membership_tier?: string | null;
+      membership_status?: string | null;
+      last_seen_at?: string | null;
+    })[]).map((row) => [
+      row.id,
+      {
+        ...row,
+        last_seen_at: row.last_seen_at ?? null,
+        membership_tier: normalizeMembershipTier(row.membership_tier),
+        membership_status: normalizeMembershipStatus(row.membership_status),
+      },
+    ])
+  );
+
+  return rows
+    .map((row) => {
+      const user = byId.get(row.user_id);
+      if (!user) return null;
+      return { ...user, viewed_at: row.viewed_at };
+    })
+    .filter((row): row is ContentViewer => row !== null);
+}
+
+export async function countContentViews(
+  contentType: ContentViewType,
+  contentId: string
+): Promise<number> {
+  const client = getSupabaseAdmin();
+  const { count, error } = await client
+    .from("content_views")
+    .select("*", { count: "exact", head: true })
+    .eq("content_type", contentType)
+    .eq("content_id", contentId);
+  throwReadError(error);
+  return count ?? 0;
 }

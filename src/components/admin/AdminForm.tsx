@@ -99,7 +99,7 @@ export function AdminImageField({
       {currentUrl && (
         <div className="mb-3 overflow-hidden rounded-[12px] border border-border">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={currentUrl} alt="Current giveaway" className="max-h-48 w-full object-cover" />
+          <img src={currentUrl} alt="Current image" className="max-h-48 w-full object-cover" />
         </div>
       )}
       <input
@@ -114,6 +114,51 @@ export function AdminImageField({
         <label className="mt-3 flex items-center gap-2 text-sm text-muted">
           <input type="checkbox" name="remove_image" className="rounded border-border" />
           Remove current image
+        </label>
+      )}
+    </div>
+  );
+}
+
+export function AdminMultiImageField({
+  label = "Images",
+  currentUrls = [],
+  name = "images",
+}: {
+  label?: string;
+  currentUrls?: string[];
+  name?: string;
+}) {
+  return (
+    <div>
+      <label htmlFor={name} className="mb-2 block text-sm tracking-wide text-muted">
+        {label}
+      </label>
+      {currentUrls.length > 0 && (
+        <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {currentUrls.map((url) => (
+            <div key={url} className="overflow-hidden rounded-[12px] border border-border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" className="aspect-[4/3] w-full object-cover" />
+            </div>
+          ))}
+        </div>
+      )}
+      <input
+        id={name}
+        name={name}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        multiple
+        className="w-full rounded-[16px] border border-border bg-background/80 px-4 py-3 text-sm text-foreground file:mr-4 file:rounded-full file:border-0 file:bg-accent/15 file:px-4 file:py-2 file:text-sm file:font-medium file:text-accent"
+      />
+      <p className="mt-2 text-xs text-muted">
+        Select one or more images — JPG, PNG, WebP, or GIF, max 5 MB each
+      </p>
+      {currentUrls.length > 0 && (
+        <label className="mt-3 flex items-center gap-2 text-sm text-muted">
+          <input type="checkbox" name="remove_images" className="rounded border-border" />
+          Remove all current images
         </label>
       )}
     </div>

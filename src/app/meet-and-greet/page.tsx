@@ -3,13 +3,12 @@ import { getMeetGreetEvents } from "@/lib/data";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EventCard } from "@/components/meet-greet/EventCard";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { buildPageMetadata, privateRobots } from "@/lib/seo";
+import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Meet & Greet",
-  description: "Member-only meet and greet event registration.",
+  description: "Official meet and greet events. Anyone can browse — sign in to register.",
   path: "/meet-and-greet",
-  robots: privateRobots,
 });
 
 export const revalidate = 60;
@@ -22,7 +21,7 @@ export default async function MeetAndGreetPage() {
       <PageHeader
         eyebrow="Connect"
         title="Meet & Greet"
-        description="Register for upcoming events and connect in person. Spots are limited."
+        description="Browse upcoming events and connect in person. Sign in to register — spots are limited."
       />
 
       {!events.length ? (

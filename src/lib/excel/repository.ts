@@ -10,6 +10,7 @@ import {
   workbookExists,
   type SheetName,
 } from "./db";
+import type { ContentViewType, ContentViewer } from "@/lib/content-views";
 import type {
   Community,
   ContactLink,
@@ -893,8 +894,10 @@ export async function createMeetGreetEvent(
   data: Omit<MeetGreetEvent, "id" | "created_at">
 ) {
   const events = readSheet<MeetGreetEvent>("meet_greet_events");
-  events.push({ ...data, id: randomUUID(), created_at: now() });
+  const id = randomUUID();
+  events.push({ ...data, id, created_at: now() });
   writeSheet("meet_greet_events", events);
+  return id;
 }
 
 export async function updateMeetGreetEvent(id: string, data: Partial<MeetGreetEvent>) {
@@ -1866,6 +1869,71 @@ export async function getAdminStats() {
     communityCount: readSheet<CommunityRow>("communities").length,
     entryCount: readSheet<GiveawayEntry>("giveaway_entries").length,
   };
+}
+
+// ─── Content views ────────────────────────────────────────────
+
+interface ContentViewRow {
+  id: string;
+  content_type: ContentViewType;
+  content_id: string;
+  user_id: string;
+  viewed_at: string;
+}
+
+export async function recordContentView(
+  contentType: ContentViewType,
+  contentId: string,
+  userId: string
+): Promise<void> {
+  const views = readSheet<ContentViewRow>("content_views");
+  const exists = views.some(
+    (row) =>
+      row.content_type === contentType &&
+      row.content_id === contentId &&
+      row.user_id === userId
+  );
+  if (exists) return;
+
+  views.push({
+    id: randomUUID(),
+    content_type: contentType,
+    content_id: contentId,
+    user_id: userId,
+    viewed_at: now(),
+  });
+  writeSheet("content_views", views);
+}
+
+export async function getContentViewers(
+  contentType: ContentViewType,
+  contentId: string
+): Promise<ContentViewer[]> {
+  const views = readSheet<ContentViewRow>("content_views")
+    .filter((row) => row.content_type === contentType && row.content_id === contentId)
+    .sort((a, b) => new Date(b.viewed_at).getTime() - new Date(a.viewed_at).getTime());
+
+  if (!views.length) return [];
+
+  const users = await getAdminUserList();
+  const byId = new Map(users.map((user) => [user.id, user]));
+
+  return views
+    .map((row) => {
+      const user = byId.get(row.user_id);
+      if (!user) return null;
+      return { ...user, viewed_at: row.viewed_at };
+    })
+    .filter((row): row is ContentViewer => row !== null);
+}
+
+export async function countContentViews(
+  contentType: ContentViewType,
+  contentId: string
+): Promise<number> {
+  return readSheet<ContentViewRow>("content_views").filter(
+    (row) => row.content_type === contentType && row.content_id === contentId
+  ).length;
 }
 
 export type { SheetName };

@@ -99,3 +99,6 @@ export const deletePushSubscription = repository.deletePushSubscription;
 export const getPushSubscriptionsForUser = repository.getPushSubscriptionsForUser;
 export const countUnreadMessagesForUser = repository.countUnreadMessagesForUser;
 export const getAdminStats = repository.getAdminStats;
+export const recordContentView = repository.recordContentView;
+export const getContentViewers = repository.getContentViewers;
+export const countContentViews = repository.countContentViews;

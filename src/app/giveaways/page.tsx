@@ -3,13 +3,12 @@ import { getGiveaways } from "@/lib/data";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { GiveawayCard } from "@/components/giveaways/GiveawayCard";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { buildPageMetadata, privateRobots } from "@/lib/seo";
+import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Giveaways",
-  description: "Member-only fan giveaways and prize entries.",
+  description: "Official fan giveaways and prize entries. Anyone can browse — sign in to enter.",
   path: "/giveaways",
-  robots: privateRobots,
 });
 
 export const revalidate = 60;
@@ -22,7 +21,7 @@ export default async function GiveawaysPage() {
       <PageHeader
         eyebrow="Win Big"
         title="Giveaways"
-        description="Enter for a chance to win exclusive prizes. Log in to participate."
+        description="Enter for a chance to win exclusive prizes. Browse freely — sign in to participate."
       />
 
       {!giveaways.length ? (

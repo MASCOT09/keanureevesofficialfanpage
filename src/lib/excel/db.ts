@@ -18,7 +18,8 @@ export type SheetName =
   | "messages"
   | "notifications"
   | "membership_applications"
-  | "push_subscriptions";
+  | "push_subscriptions"
+  | "content_views";
 
 export class WorkbookWriteError extends Error {
   constructor(message: string) {

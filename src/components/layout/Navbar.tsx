@@ -12,8 +12,8 @@ export interface NavbarUser {
   display_name: string;
 }
 
-const publicNavKeys = ["navbar.home", "navbar.communities"] as const;
-const memberNavKeys = ["navbar.giveaways", "navbar.meet_greet", "navbar.contact"] as const;
+const publicNavKeys = ["navbar.home", "navbar.communities", "navbar.giveaways", "navbar.meet_greet"] as const;
+const memberNavKeys = ["navbar.contact"] as const;
 
 function navItem(map: SiteButtonMap, key: string) {
   const btn = pickSiteButton(map, key);
@@ -51,9 +51,10 @@ export function Navbar({
 
   const isAdmin = user?.role === "admin";
   const home = navItem(buttons, "navbar.home");
-  const navLinks = user
-    ? [...publicNavKeys, ...memberNavKeys].map((key) => navItem(buttons, key))
-    : publicNavKeys.map((key) => navItem(buttons, key));
+  const navLinks = [
+    ...publicNavKeys,
+    ...(user ? memberNavKeys : []),
+  ].map((key) => navItem(buttons, key));
   const login = navItem(buttons, "navbar.login");
   const signup = navItem(buttons, "navbar.signup");
   const dashboard = navItem(buttons, "navbar.dashboard");

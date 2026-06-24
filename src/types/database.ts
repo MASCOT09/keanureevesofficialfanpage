@@ -29,6 +29,7 @@ export interface Giveaway {
   description: string | null;
   rules: string | null;
   image_url: string | null;
+  image_urls: string | null;
   ends_at: string;
   status: GiveawayStatus;
   created_at: string;
@@ -48,6 +49,8 @@ export interface MeetGreetEvent {
   title: string;
   description: string | null;
   location: string | null;
+  image_url: string | null;
+  image_urls: string | null;
   event_date: string;
   max_spots: number;
   status: MeetGreetStatus;

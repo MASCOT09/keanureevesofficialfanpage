@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getGiveawayById } from "@/lib/data";
-import { getCurrentUser } from "@/lib/auth";
-import { hasGiveawayEntry } from "@/lib/repository";
+import { getCurrentUser, isAdmin } from "@/lib/auth";
+import { hasGiveawayEntry, getContentViewers, recordContentView } from "@/lib/repository";
 import { EnterGiveawayButton } from "@/components/giveaways/EnterGiveawayButton";
 import { Badge } from "@/components/ui/Badge";
+import { ContentImageGallery } from "@/components/content/ContentImageGallery";
+import { ContentViewersPanel } from "@/components/content/ContentViewersPanel";
+import { resolveImageList } from "@/lib/media-upload";
 
-import { buildPageMetadata, privateRobots } from "@/lib/seo";
+import { buildPageMetadata } from "@/lib/seo";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -18,15 +20,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const giveaway = await getGiveawayById(id);
   const title = giveaway?.title ?? "Giveaway";
-  const description = giveaway?.description ?? "Member-only giveaway details.";
+  const description = giveaway?.description ?? "Official fan giveaway details.";
+  const images = giveaway ? resolveImageList(giveaway) : [];
 
   return buildPageMetadata({
     title,
     description,
     path: `/giveaways/${id}`,
-    image: giveaway?.image_url ?? undefined,
+    image: images[0] ?? giveaway?.image_url ?? undefined,
     imageAlt: giveaway?.title,
-    robots: privateRobots,
   });
 }
 
@@ -37,8 +39,15 @@ export default async function GiveawayDetailPage({ params }: Props) {
   if (!giveaway) notFound();
 
   const user = await getCurrentUser();
+  if (user) {
+    await recordContentView("giveaway", id, user.id);
+  }
+
+  const admin = await isAdmin();
+  const viewers = admin ? await getContentViewers("giveaway", id) : [];
   const isLoggedIn = !!user;
   const hasEntered = user ? await hasGiveawayEntry(user.id, id) : false;
+  const images = resolveImageList(giveaway);
 
   const isActive =
     giveaway.status === "active" && new Date(giveaway.ends_at) > new Date();
@@ -53,19 +62,7 @@ export default async function GiveawayDetailPage({ params }: Props) {
       </Link>
 
       <div className="luxury-card card-shine mb-8 overflow-hidden">
-        {giveaway.image_url && (
-          <div className="relative aspect-[21/9] w-full border-b border-border/60">
-            <Image
-              src={giveaway.image_url}
-              alt={giveaway.title}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 768px"
-              priority
-              unoptimized
-            />
-          </div>
-        )}
+        <ContentImageGallery images={images} alt={giveaway.title} />
         <div className="p-8 sm:p-10">
         <div className="mb-5 flex flex-wrap items-center gap-3">
           <Badge variant={isActive ? "active" : "closed"}>
@@ -96,6 +93,8 @@ export default async function GiveawayDetailPage({ params }: Props) {
         hasEntered={hasEntered}
         isLoggedIn={isLoggedIn}
       />
+
+      {admin && <ContentViewersPanel viewers={viewers} />}
     </div>
   );
 }

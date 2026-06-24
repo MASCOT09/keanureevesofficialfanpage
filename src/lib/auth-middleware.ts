@@ -20,7 +20,7 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  const memberOnlyPaths = ["/giveaways", "/meet-and-greet", "/contact"];
+  const memberOnlyPaths = ["/contact"];
   const isMemberOnlyPath = memberOnlyPaths.some(
     (path) =>
       request.nextUrl.pathname === path ||
