@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { formatDashboardDateTime } from "@/lib/dashboard-utils";
 import { MembershipPaymentOptions } from "@/components/messages/MembershipPaymentOptions";
 import type { Message, MessageSenderRole } from "@/types/messages";
@@ -61,6 +62,7 @@ export function MessageThreadChat({
   defaultFromName = "Keanu Fan Team",
   senderDisplayName = "Fan",
 }: MessageThreadChatProps) {
+  const router = useRouter();
   const [items, setItems] = useState(messages);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -142,6 +144,8 @@ export function MessageThreadChat({
         if (fromNameField) payload.set("from_name", fromName);
         if (hasImage && imageFile) payload.set("image", imageFile);
         await replyAction(payload);
+        setSending(false);
+        router.refresh();
       } catch (err) {
         setSending(false);
         setItems((prev) => prev.filter((message) => message.id !== optimisticId));

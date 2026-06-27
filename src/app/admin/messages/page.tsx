@@ -21,9 +21,9 @@ export const metadata: Metadata = {
 export default async function AdminMessagesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sent?: string }>;
+  searchParams: Promise<{ sent?: string; error?: string }>;
 }) {
-  const [{ sent }, fans, threads, unreadReplies] = await Promise.all([
+  const [{ sent, error }, fans, threads, unreadReplies] = await Promise.all([
     searchParams,
     getFansForMessaging(),
     getMessageThreadsForAdmin(),
@@ -38,6 +38,12 @@ export default async function AdminMessagesPage({
         title="Fan Messages"
         description="Two-way inbox — reply to fan membership requests and send announcements."
       />
+
+      {error && (
+        <div className="mb-8 rounded-[16px] border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-300">
+          {decodeURIComponent(error)}
+        </div>
+      )}
 
       {sent === "1" && (
         <div className="mb-8 rounded-[16px] border border-accent/30 bg-accent/10 px-5 py-4 text-sm text-foreground">
@@ -136,7 +142,7 @@ export default async function AdminMessagesPage({
               fan dashboard bell icon)
             </span>
           </label>
-          <AdminSubmitButton label="Send message" />
+          <AdminSubmitButton label="Send message" pendingLabel="Sending..." />
         </form>
       </AdminCard>
     </div>

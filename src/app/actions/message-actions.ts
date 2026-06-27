@@ -45,8 +45,12 @@ export async function replyAsFanAction(threadId: string, formData: FormData) {
   if (!user) throw new Error("You must be logged in.");
 
   const profile = await getProfileById(user.id);
-  const body = (formData.get("body") as string)?.trim();
+  const body = (formData.get("body") as string)?.trim() ?? "";
   const imageUrl = await parseMessageImage(user.id, formData);
+
+  if (!body && !imageUrl) {
+    throw new Error("Message or image is required.");
+  }
 
   await replyAsFan({
     userId: user.id,
@@ -59,5 +63,4 @@ export async function replyAsFanAction(threadId: string, formData: FormData) {
   revalidatePath("/dashboard/messages");
   revalidatePath(`/dashboard/messages/${threadId}`);
   revalidatePath("/admin/messages");
-  redirect(`/dashboard/messages/${threadId}?sent=1`);
 }

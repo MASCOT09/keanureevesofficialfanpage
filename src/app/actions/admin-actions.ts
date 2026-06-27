@@ -134,29 +134,35 @@ export async function deleteUserAction(targetUserId: string) {
 }
 
 export async function sendAdminMessageAction(formData: FormData) {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const recipient = (formData.get("recipient") as string)?.trim();
-  const subject = (formData.get("subject") as string)?.trim();
-  const body = (formData.get("body") as string)?.trim();
-  const fromName = (formData.get("from_name") as string)?.trim() || "Keanu Fan Team";
-  const alsoNotify = formData.get("also_notify") === "on";
+    const recipient = (formData.get("recipient") as string)?.trim();
+    const subject = (formData.get("subject") as string)?.trim();
+    const body = (formData.get("body") as string)?.trim();
+    const fromName = (formData.get("from_name") as string)?.trim() || "Keanu Fan Team";
+    const alsoNotify = formData.get("also_notify") === "on";
 
-  if (!recipient) throw new Error("Choose who should receive this message.");
+    if (!recipient) throw new Error("Choose who should receive this message.");
 
-  await sendAdminMessage({
-    recipient: recipient === "all" ? "all" : recipient,
-    subject,
-    body,
-    fromName,
-    alsoNotify,
-  });
+    await sendAdminMessage({
+      recipient: recipient === "all" ? "all" : recipient,
+      subject,
+      body,
+      fromName,
+      alsoNotify,
+    });
 
-  revalidatePath("/admin/messages");
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/messages");
-  revalidatePath("/dashboard/notifications");
-  redirect("/admin/messages?sent=1");
+    revalidatePath("/admin/messages");
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/messages");
+    revalidatePath("/dashboard/notifications");
+    redirect("/admin/messages?sent=1");
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    const message = error instanceof Error ? error.message : "Could not send message.";
+    redirect(`/admin/messages?error=${encodeURIComponent(message)}`);
+  }
 }
 
 export async function replyAsAdminThreadAction(threadId: string, formData: FormData) {
@@ -165,12 +171,16 @@ export async function replyAsAdminThreadAction(threadId: string, formData: FormD
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
-  const body = (formData.get("body") as string)?.trim();
+  const body = (formData.get("body") as string)?.trim() ?? "";
   const fromName = (formData.get("from_name") as string)?.trim() || "Keanu Fan Team";
   let imageUrl: string | null = null;
   const image = formData.get("image");
   if (image instanceof File && image.size > 0) {
     imageUrl = await saveMessageImage(session.sub, image);
+  }
+
+  if (!body && !imageUrl) {
+    throw new Error("Message or image is required.");
   }
 
   await replyAsAdminToThread({ threadId, body, fromName, imageUrl });
@@ -179,7 +189,6 @@ export async function replyAsAdminThreadAction(threadId: string, formData: FormD
   revalidatePath("/admin/messages");
   revalidatePath(`/admin/messages/${threadId}`);
   revalidatePath("/dashboard/messages");
-  redirect(`/admin/messages/${threadId}?sent=1`);
 }
 
 export async function markAdminThreadReadAction(threadId: string) {

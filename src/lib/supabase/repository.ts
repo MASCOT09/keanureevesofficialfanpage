@@ -134,7 +134,7 @@ function throwReadError(error: { message: string } | null): void {
 }
 
 function throwWriteError(error: { message: string } | null): void {
-  if (error) throw new Error(writeErrorMessage());
+  if (error) throw new Error(error.message || writeErrorMessage());
 }
 
 function userToProfile(row: UserRow): Profile {
@@ -175,6 +175,77 @@ function mapMessage(row: MessageRow): Message {
     message_kind: row.message_kind === "payment_options" ? "payment_options" : "text",
     metadata: row.metadata ?? null,
   };
+}
+
+function buildMessageInsertRow(input: {
+  id: string;
+  user_id: string;
+  thread_id: string;
+  sender_role: "admin" | "fan";
+  subject: string;
+  body: string;
+  from_name: string;
+  is_read: boolean;
+  status: Message["status"];
+  image_url?: string | null;
+  message_kind?: Message["message_kind"];
+  metadata?: string | null;
+}) {
+  const row: Record<string, unknown> = {
+    id: input.id,
+    user_id: input.user_id,
+    thread_id: input.thread_id,
+    sender_role: input.sender_role,
+    subject: input.subject,
+    body: input.body,
+    from_name: input.from_name,
+    is_read: input.is_read,
+    status: input.status,
+    created_at: now(),
+  };
+  if (input.image_url) row.image_url = input.image_url;
+  if (input.message_kind && input.message_kind !== "text") row.message_kind = input.message_kind;
+  if (input.metadata) row.metadata = input.metadata;
+  return row;
+}
+
+async function insertMessage(
+  client: ReturnType<typeof getSupabaseAdmin>,
+  row: Record<string, unknown>
+): Promise<void> {
+  const { error } = await client.from("messages").insert(row);
+  if (!error) return;
+
+  if (
+    error.message.includes("image_url") ||
+    error.message.includes("message_kind") ||
+    error.message.includes("metadata")
+  ) {
+    const legacy = { ...row };
+    delete legacy.image_url;
+    delete legacy.message_kind;
+    delete legacy.metadata;
+    const { error: legacyError } = await client.from("messages").insert(legacy);
+    throwWriteError(legacyError);
+    return;
+  }
+
+  throwWriteError(error);
+}
+
+async function fetchThreadRows(
+  client: ReturnType<typeof getSupabaseAdmin>,
+  threadId: string,
+  userId?: string
+): Promise<MessageRow[]> {
+  let query = client
+    .from("messages")
+    .select("*")
+    .or(`thread_id.eq.${threadId},id.eq.${threadId}`);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, error } = await query;
+  throwReadError(error);
+  return (data ?? []) as MessageRow[];
 }
 
 function toCommunity(row: CommunityRow): Community {
@@ -1823,10 +1894,8 @@ export async function getThreadMessages(threadId: string, userId: string): Promi
 
 export async function getThreadMessagesForAdmin(threadId: string): Promise<Message[]> {
   const client = getSupabaseAdmin();
-  const { data, error } = await client.from("messages").select("*");
-  throwReadError(error);
-  return ((data ?? []) as MessageRow[])
-    .filter((m) => m.thread_id === threadId || m.id === threadId)
+  const rows = await fetchThreadRows(client, threadId);
+  return rows
     .map(mapMessage)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
@@ -1846,29 +1915,32 @@ export async function createFanMessageThread(input: {
 
   const client = getSupabaseAdmin();
   const messageId = randomUUID();
-  const { error } = await client.from("messages").insert({
-    id: messageId,
-    user_id: input.userId,
-    thread_id: messageId,
-    sender_role: "fan",
-    subject,
-    body: body || "(Image)",
-    from_name: input.displayName.trim() || "Fan",
-    is_read: false,
-    status: "read",
-    created_at: now(),
-    image_url: imageUrl,
-    message_kind: "text",
-    metadata: null,
-  });
-  throwWriteError(error);
+  await insertMessage(
+    client,
+    buildMessageInsertRow({
+      id: messageId,
+      user_id: input.userId,
+      thread_id: messageId,
+      sender_role: "fan",
+      subject,
+      body: body || "(Image)",
+      from_name: input.displayName.trim() || "Fan",
+      is_read: false,
+      status: "read",
+      image_url: imageUrl,
+    })
+  );
 
-  const adminEmails = await getAdminEmails();
-  await notifyAdminsOfUnreadFanMessage({
-    adminEmails,
-    fanName: input.displayName,
-    threadId: messageId,
-  });
+  try {
+    const adminEmails = await getAdminEmails();
+    await notifyAdminsOfUnreadFanMessage({
+      adminEmails,
+      fanName: input.displayName,
+      threadId: messageId,
+    });
+  } catch (error) {
+    console.error("[messages] admin notify failed", error);
+  }
 
   return messageId;
 }
@@ -1885,37 +1957,28 @@ export async function replyAsFan(input: {
   if (!body && !imageUrl) throw new Error("Message or image is required.");
 
   const client = getSupabaseAdmin();
-  const { data: rows, error: readError } = await client
-    .from("messages")
-    .select("*")
-    .eq("user_id", input.userId);
-  throwReadError(readError);
-
-  const thread = ((rows ?? []) as MessageRow[]).filter(
-    (m) => m.thread_id === input.threadId || m.id === input.threadId
-  );
+  const thread = await fetchThreadRows(client, input.threadId, input.userId);
   if (!thread.length) throw new Error("Conversation not found.");
 
   const subject = thread.sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   )[0].subject;
 
-  const { error: insertError } = await client.from("messages").insert({
-    id: randomUUID(),
-    user_id: input.userId,
-    thread_id: input.threadId,
-    sender_role: "fan",
-    subject,
-    body: body || "(Image)",
-    from_name: input.displayName.trim() || "Fan",
-    is_read: false,
-    status: "read",
-    created_at: now(),
-    image_url: imageUrl,
-    message_kind: "text",
-    metadata: null,
-  });
-  throwWriteError(insertError);
+  await insertMessage(
+    client,
+    buildMessageInsertRow({
+      id: randomUUID(),
+      user_id: input.userId,
+      thread_id: input.threadId,
+      sender_role: "fan",
+      subject,
+      body: body || "(Image)",
+      from_name: input.displayName.trim() || "Fan",
+      is_read: false,
+      status: "read",
+      image_url: imageUrl,
+    })
+  );
 
   const adminMessageIds = thread
     .filter((m) => m.sender_role !== "fan")
@@ -1928,12 +1991,16 @@ export async function replyAsFan(input: {
     throwWriteError(updateError);
   }
 
-  const adminEmails = await getAdminEmails();
-  await notifyAdminsOfUnreadFanMessage({
-    adminEmails,
-    fanName: input.displayName,
-    threadId: input.threadId,
-  });
+  try {
+    const adminEmails = await getAdminEmails();
+    await notifyAdminsOfUnreadFanMessage({
+      adminEmails,
+      fanName: input.displayName,
+      threadId: input.threadId,
+    });
+  } catch (error) {
+    console.error("[messages] admin notify failed", error);
+  }
 }
 
 export async function replyAsAdminToThread(input: {
@@ -1948,34 +2015,28 @@ export async function replyAsAdminToThread(input: {
   if (!body && !imageUrl) throw new Error("Message or image is required.");
 
   const client = getSupabaseAdmin();
-  const { data: rows, error: readError } = await client.from("messages").select("*");
-  throwReadError(readError);
-
-  const thread = ((rows ?? []) as MessageRow[]).filter(
-    (m) => m.thread_id === input.threadId || m.id === input.threadId
-  );
+  const thread = await fetchThreadRows(client, input.threadId);
   if (!thread.length) throw new Error("Conversation not found.");
 
   const first = thread.sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   )[0];
 
-  const { error: insertError } = await client.from("messages").insert({
-    id: randomUUID(),
-    user_id: first.user_id,
-    thread_id: input.threadId,
-    sender_role: "admin",
-    subject: first.subject,
-    body: body || "(Image)",
-    from_name: fromName,
-    is_read: false,
-    status: "unread",
-    created_at: now(),
-    image_url: imageUrl,
-    message_kind: "text",
-    metadata: null,
-  });
-  throwWriteError(insertError);
+  await insertMessage(
+    client,
+    buildMessageInsertRow({
+      id: randomUUID(),
+      user_id: first.user_id,
+      thread_id: input.threadId,
+      sender_role: "admin",
+      subject: first.subject,
+      body: body || "(Image)",
+      from_name: fromName,
+      is_read: false,
+      status: "unread",
+      image_url: imageUrl,
+    })
+  );
 
   const fanMessageIds = thread.filter((m) => m.sender_role === "fan").map((m) => m.id);
   if (fanMessageIds.length) {
@@ -1986,19 +2047,23 @@ export async function replyAsAdminToThread(input: {
     throwWriteError(updateError);
   }
 
-  const { data: fan, error: fanError } = await client
-    .from("app_users")
-    .select("email, display_name")
-    .eq("id", first.user_id)
-    .maybeSingle<{ email: string; display_name: string }>();
-  throwReadError(fanError);
-  if (fan) {
-    await notifyFanOfUnreadInboxMessage({
-      fanUserId: first.user_id,
-      fanEmail: fan.email,
-      fanName: fan.display_name,
-      threadId: input.threadId,
-    });
+  try {
+    const { data: fan, error: fanError } = await client
+      .from("app_users")
+      .select("email, display_name")
+      .eq("id", first.user_id)
+      .maybeSingle<{ email: string; display_name: string }>();
+    throwReadError(fanError);
+    if (fan) {
+      await notifyFanOfUnreadInboxMessage({
+        fanUserId: first.user_id,
+        fanEmail: fan.email,
+        fanName: fan.display_name,
+        threadId: input.threadId,
+      });
+    }
+  } catch (error) {
+    console.error("[messages] fan notify failed", error);
   }
 }
 
